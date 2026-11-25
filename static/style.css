@@ -843,3 +843,7 @@ button.danger { color: var(--bad); }
 .bw-wprog i { display: block; height: 100%; background: #e3b341; }
 .bw-lockmsg { font-size: 13px; font-weight: 600; }
 .bw-wcard button { margin-top: auto; }
+
+/* start-up lock */
+html.startlocked body { visibility: hidden; }
+.lockscreen.startlock { z-index: 6000; }

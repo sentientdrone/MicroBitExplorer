@@ -121,9 +121,11 @@ function showTeacherPanel() {
   teacherDialog(`<div class="tdlg-head"><h2 id="tdlg-title">👩‍🏫 Parent / teacher mode</h2><button id="tp-close">Done ✓</button></div>
     <p class="muted">🔓 Unlocked for ${UNLOCK_MINUTES} minutes on this browser tab. Kids can now reveal answers in search.</p>
     <div class="row"><button id="tp-lock" class="primary">🔒 Lock now</button><button id="tp-change">✏️ Change code</button><button id="tp-remove">🗑️ Remove code</button></div>
+    ${typeof startLockSettingsHTML === 'function' ? startLockSettingsHTML() : ''}
     <h3>📋 Quiz answer key (${QUESTIONS.length} questions)</h3><ol class="tk-list">${qs}</ol>
     <h3>🖐️ Hands-on challenges</h3><p class="muted">These are checked automatically on the micro:bit.</p><ul class="tk-list">${ch}</ul>`, () => {
     $('tp-close').onclick = () => closeTeacher(true);
+    if (typeof bindStartLockSettings === 'function') bindStartLockSettings(showTeacherPanel);
     $('tp-lock').onclick = () => { setUnlocked(false); closeTeacher(false); };
     $('tp-change').onclick = () => teacherDialog(createCodeHTML('Change your code', 'Type a new code. The old one will stop working.'), () => bindCreate(showTeacherPanel));
     $('tp-remove').onclick = () => {

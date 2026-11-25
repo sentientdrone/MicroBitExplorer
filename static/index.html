@@ -6,6 +6,7 @@
 <title>micro:bit Manager</title>
 <link rel="stylesheet" href="style.css">
 <script src="vendor/dap.umd.js"></script>
+<script>/* start-up lock: hide the page until startlock.js shows the lock screen */try{if(JSON.parse(localStorage.getItem('microbit-startlock')||'null')?.on)document.documentElement.classList.add('startlocked')}catch(e){}</script>
 </head>
 <body>
 <header>
@@ -270,5 +271,6 @@ while True:
 <script src="world.js"></script>
 <script src="sim-modules.js"></script>
 <script src="sim.js"></script>
+<script src="startlock.js"></script>
 </body>
 </html>
