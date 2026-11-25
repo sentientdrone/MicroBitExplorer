@@ -71,10 +71,10 @@ function bindShopGames() {
 function renderArcade() {
   const box = $('wr-games'); if (!box) return;
   const owned = Object.entries(ARCADE).filter(([id]) => games().owned.includes(id));
-  const chipsFound = (games().world || []).length;
+  const bw = typeof bwSummary === 'function' ? bwSummary() : { found: 0, total: 0, worlds: 0 };
   const world = typeof openBlockyWorld === 'function' ? `<div class="arc-card arc-world" style="--gc:#1f7a50"><span class="arc-ico">🌍</span><b>Bit's Blocky World <span class="arc-free-tag">FREE</span></b>
-      <span class="muted">Walk around a giant micro:bit island and find the ⭐ chips. Each one teaches you a part of the micro:bit.</span>
-      <span class="muted">⭐ <b>${chipsFound}</b>/9 chips found · no battery needed</span>
+      <span class="muted">Walk around ${bw.worlds} blocky worlds and find the ⭐ chips. Each one teaches you something about the micro:bit.</span>
+      <span class="muted">⭐ <b>${bw.found}</b>/${bw.total} chips found · no battery needed</span>
       <button class="primary" id="arc-world">▶ Explore</button></div>` : '';
   box.innerHTML = world + (owned.length ? `<p class="muted">Each play uses one charge. Charges come back by themselves: one every ${RECHARGE_MS / 60000} minutes.</p>
     <div class="arc-shop">${owned.map(([id, g]) => `<div class="arc-card" style="--gc:${g.color}"><span class="arc-ico">${g.icon}</span><b>${g.name}</b>

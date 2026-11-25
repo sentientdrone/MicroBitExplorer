@@ -828,3 +828,18 @@ button.danger { color: var(--bad); }
   .bw-toast { max-width: calc(100% - 20px); font-size: 13px; }
   .bw-panel { left: 6px; right: 6px; bottom: 6px; padding: 10px 12px; }
 }
+
+/* Blocky World: choosing a world */
+.bw-pick { padding: 4px 2px 8px; }
+.bw-pick h2 { margin: 0 0 4px; }
+.bw-worlds { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 12px; }
+.bw-wcard { display: flex; flex-direction: column; gap: 6px; padding: 14px; border-radius: 14px; border: 2px solid var(--line); }
+.bw-wcard.bw-w1 { background: linear-gradient(160deg, color-mix(in srgb, #6cc24a 18%, var(--card)), var(--card)); }
+.bw-wcard.bw-w2 { background: linear-gradient(160deg, color-mix(in srgb, #e9b872 30%, var(--card)), var(--card)); }
+.bw-wcard.bw-w3 { background: linear-gradient(160deg, color-mix(in srgb, #8250df 18%, var(--card)), var(--card)); }
+.bw-wcard.locked { opacity: .65; filter: grayscale(.6); }
+.bw-wico { font-size: 40px; }
+.bw-wprog { height: 8px; border-radius: 99px; background: color-mix(in srgb, var(--fg) 12%, transparent); overflow: hidden; }
+.bw-wprog i { display: block; height: 100%; background: #e3b341; }
+.bw-lockmsg { font-size: 13px; font-weight: 600; }
+.bw-wcard button { margin-top: auto; }

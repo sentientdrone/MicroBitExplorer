@@ -475,7 +475,7 @@ class Classroom:
                                        if k in owned and isinstance(v, (int, float))}
         return {"owned": owned, "charges": num(g.get("charges"), 0, 3, int),
                 "updated": num(g.get("updated"), 0, 1e14, float), "best": num(g.get("best"), 0, 10**7, int),
-                "world": list(dict.fromkeys(x for x in (g.get("world") or []) if isinstance(x, str) and ITEM_ID.match(x)))[:20]}
+                "world": list(dict.fromkeys(x for x in (g.get("world") or []) if isinstance(x, str) and ITEM_ID.match(x)))[:60]}
 
     def get_profile(self, student_token):
         me = self.me(student_token)
