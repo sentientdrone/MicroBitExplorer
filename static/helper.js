@@ -54,7 +54,7 @@ const ITEMS = {
   // ---- won from teacher quizzes
   bucket:     { pool: 'teacher', name: 'Bucket hat (a real bucket)', tier: 'junk', slot: 'head', icon: '🪣', draw: () => emo('🪣', 100, 22, 56, 'transform="rotate(180 100 22)"') },
   sponge:     { pool: 'teacher', name: 'Soggy sponge',     tier: 'junk', slot: 'hand', icon: '🧽', draw: () => emo('🧽', 158, 148, 32) + emo('💧', 166, 172, 14) },
-  boot:       { pool: 'teacher', name: 'One old boot',     tier: 'junk', slot: 'ride', icon: '🥾', draw: () => emo('🥾', 100, 200, 58) },
+  boot:       { pool: 'teacher', name: 'One old boot',     tier: 'junk', slot: 'feet', icon: '🥾', draw: () => emo('🥾', 118, 200, 42) },
   flower:     { pool: 'teacher', name: 'Sunflower',        tier: 'common', slot: 'head', icon: '🌻', draw: () => emo('🌻', 116, 30, 40) },
   lollipop:   { pool: 'teacher', name: 'Giant lollipop',   tier: 'common', slot: 'hand', icon: '🍭', draw: () => emo('🍭', 160, 138, 40) },
   backpack:   { pool: 'teacher', name: 'School backpack',  tier: 'common', slot: 'back', icon: '🎒', draw: () => emo('🎒', 140, 126, 50) },
@@ -78,8 +78,8 @@ const ITEMS = {
   planet:     { pool: 'teacher', name: 'Planet rings',     tier: 'legendary', slot: 'aura', icon: '🪐', draw: () => emo('🪐', 100, 96, 190, 'opacity=".45"') },
 };
 const SLOT_ORDER_BEHIND = ['aura', 'back'];
-const SLOT_ORDER_FRONT = ['neck', 'face', 'head', 'hand', 'ride'];
-const SLOT_NAMES = { head: 'Head', face: 'Face', neck: 'Neck', hand: 'Hand', ride: 'Feet / ride', back: 'Back', aura: 'Aura' };
+const SLOT_ORDER_FRONT = ['neck', 'face', 'head', 'hand', 'ride', 'feet'];  // feet last: a boot shows even in a trash can
+const SLOT_NAMES = { head: 'Head', face: 'Face', neck: 'Neck', hand: 'Hand', ride: 'Ride', feet: 'Feet', back: 'Back', aura: 'Aura' };
 
 /* ------------------------------------------------------ saved state */
 // Whose Bit is loaded: this computer's own Bit (saved in the browser), or, while a kid's
@@ -88,6 +88,8 @@ const HELPER_KEY = 'microbit-helper';
 const freshBit = () => ({ name: 'Bit', owned: [], equipped: {}, bucks: 100, ownedLooks: [] });  // everyone starts with 100 Bit Bucks
 // Bits saved before looks could be locked: keep whatever look they already use unlocked.
 function ensureLooks(b) {
+  // The old boot used to share the "ride" spot; it has its own "feet" spot now.
+  if (b.equipped?.ride === 'boot') { delete b.equipped.ride; b.equipped.feet = 'boot'; }
   if (!Array.isArray(b.ownedLooks)) {
     b.ownedLooks = Object.entries({ ...DEFAULT_LOOK, ...(b.look || {}) }).filter(([k, v]) => lookTier(k, v) !== 'free').map(([k, v]) => lookId(k, v));
   }

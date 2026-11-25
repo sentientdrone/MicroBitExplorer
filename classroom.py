@@ -31,7 +31,7 @@ STUDENT_SESSION_SECONDS = 8 * 3600
 PIN_RE = re.compile(r"^\d{4,6}$")
 PIN_TRIES, PIN_LOCKOUT_SECONDS = 5, 60
 # A kid's Bit (helper robot) saved on their account
-BIT_SLOTS = {"head", "face", "neck", "hand", "ride", "back", "aura"}
+BIT_SLOTS = {"head", "face", "neck", "hand", "ride", "feet", "back", "aura"}
 BIT_LOOK_KEYS = {"body", "glow", "eyes", "mouth", "antenna"}
 ITEM_ID = re.compile(r"^[a-z0-9_]{1,30}$")
 LOOK_ID = re.compile(r"^(body|glow|eyes|mouth|antenna):[A-Za-z]{1,20}$")
