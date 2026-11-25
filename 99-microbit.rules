@@ -1,0 +1,5 @@
+# micro:bit (DAPLink interface chip, USB 0d28:0204)
+# Lets your logged-in user open it from the browser via WebUSB and Web Serial.
+SUBSYSTEM=="usb", ATTR{idVendor}=="0d28", ATTR{idProduct}=="0204", MODE="0660", GROUP="plugdev", TAG+="uaccess"
+KERNEL=="ttyACM*", ATTRS{idVendor}=="0d28", ATTRS{idProduct}=="0204", MODE="0660", GROUP="plugdev", TAG+="uaccess"
+KERNEL=="hidraw*", ATTRS{idVendor}=="0d28", ATTRS{idProduct}=="0204", MODE="0660", GROUP="plugdev", TAG+="uaccess"

@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>micro:bit Manager</title>
+<link rel="stylesheet" href="style.css">
+<script src="vendor/dap.umd.js"></script>
+</head>
+<body>
+<header>
+  <h1>micro:bit Manager <small>v1</small></h1>
+  <nav class="tabs">
+    <button class="tab" data-view="manager">🧰 Manager</button>
+    <button class="tab" data-view="blocks">🧩 Blocks</button>
+    <button class="tab" data-view="inside">🔬 Inside</button>
+    <button class="tab" data-view="quiz">🏆 Quiz</button>
+  </nav>
+  <div class="search-wrap">
+    <input id="search" type="search" placeholder="🔍 Search for answers…  ( / )" autocomplete="off" aria-label="Search lessons and answers">
+    <div id="search-results" class="search-results" hidden role="listbox"></div>
+  </div>
+  <button id="btn-tour" class="tour-btn">🎓 Tour</button>
+  <button id="btn-teacher" class="teacher-btn" title="Parent / teacher mode">👩‍🏫</button>
+  <div class="conn">
+    <span class="pill" id="pill-serial"><i></i>Serial</span>
+    <span class="pill" id="pill-usb"><i></i>WebUSB</span>
+    <span class="pill" id="pill-drive"><i></i>Drive</span>
+  </div>
+</header>
+
+<div id="unsupported" class="banner" hidden>
+  This browser has no Web Serial / WebUSB. Open this page in Chrome, Chromium or Edge.
+  Drive flashing below still works.
+</div>
+
+<main id="view-manager">
+  <!-- Connection + device info -->
+  <section class="card" id="card-device">
+    <h2>Device</h2>
+    <div class="row">
+      <button id="btn-serial" class="primary">Connect serial</button>
+      <select id="baud" title="Baud rate">
+        <option>9600</option><option>19200</option><option>38400</option><option>57600</option>
+        <option selected>115200</option>
+      </select>
+      <button id="btn-usb">Connect WebUSB</button>
+    </div>
+    <dl id="info">
+      <dt>Board</dt><dd id="i-board">–</dd>
+      <dt>Interface firmware</dt><dd id="i-fw">–</dd>
+      <dt>Serial no.</dt><dd id="i-sn">–</dd>
+      <dt>USB drive</dt><dd id="i-drive">–</dd>
+    </dl>
+    <p class="hint">Serial gives you the console, MicroPython tools and files. WebUSB is only needed for flashing
+      from the browser (DAPLink firmware 0249 or newer). Older firmware can still be flashed through the USB drive.</p>
+  </section>
+
+  <!-- Flashing -->
+  <section class="card" id="card-flash">
+    <h2>Flash a program</h2>
+    <label class="drop" id="drop">
+      <input type="file" id="hexfile" accept=".hex" hidden>
+      <span id="drop-label">Drop a <b>.hex</b> file here or click to choose</span>
+    </label>
+    <div class="row">
+      <button id="btn-flash-usb" disabled>Flash via WebUSB</button>
+      <button id="btn-flash-drive" disabled>Flash via USB drive</button>
+    </div>
+    <div class="row mp-row">
+      <button id="btn-install-mp" class="primary" disabled>Install MicroPython</button>
+      <span class="muted small-text">v1.1.1, the official release for micro:bit v1 (bundled, no internet needed)</span>
+    </div>
+    <progress id="flash-progress" max="1" value="0" hidden></progress>
+    <p id="flash-status" class="status"></p>
+    <p class="hint">Hex files come from <a href="https://python.microbit.org" target="_blank" rel="noopener">python.microbit.org</a>
+      or <a href="https://makecode.microbit.org" target="_blank" rel="noopener">makecode.microbit.org</a> (Download). The MicroPython, Code and
+      Files panels need MicroPython on the board: use Install MicroPython.</p>
+  </section>
+
+  <!-- Console -->
+  <section class="card wide" id="card-console">
+    <h2>Serial console
+      <span class="tools">
+        <button id="btn-ctrlc" class="small" title="Interrupt the running program">Ctrl‑C</button>
+        <button id="btn-ctrld" class="small" title="Soft reboot MicroPython (runs main.py)">Ctrl‑D</button>
+        <button id="btn-clear" class="small">Clear</button>
+      </span>
+    </h2>
+    <pre id="term" tabindex="0"></pre>
+    <form id="send-form" class="row">
+      <input id="send-input" autocomplete="off" placeholder="Type and press Enter (sends with \r\n)…" disabled>
+      <button id="btn-send" disabled>Send</button>
+    </form>
+  </section>
+
+  <!-- MicroPython tools -->
+  <section class="card" id="card-py">
+    <h2>MicroPython</h2>
+    <div class="split">
+      <div>
+        <div class="leds" id="leds" title="Click to toggle LEDs"></div>
+        <div class="row">
+          <button id="btn-leds-show" class="needs-serial" disabled>Show</button>
+          <button id="btn-leds-clear">Reset</button>
+        </div>
+      </div>
+      <div class="grow">
+        <div class="row">
+          <input id="scroll-text" placeholder="Text to scroll" value="Hello!">
+          <button id="btn-scroll" class="needs-serial" disabled>Scroll</button>
+        </div>
+        <div class="sensors">
+          <div><span>Temp</span><b id="s-temp">–</b></div>
+          <div><span>Light</span><b id="s-light">–</b></div>
+          <div><span>Accel X / Y / Z</span><b id="s-acc">–</b></div>
+          <div><span>Buttons A / B</span><b id="s-btn">–</b></div>
+        </div>
+        <div class="row">
+          <button id="btn-sensors" class="needs-serial" disabled>Read sensors</button>
+          <label class="check"><input type="checkbox" id="sensor-live" class="needs-serial" disabled> Live</label>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Code editor -->
+  <section class="card" id="card-code">
+    <h2>Code</h2>
+    <textarea id="code" spellcheck="false">from microbit import *
+
+while True:
+    if button_a.is_pressed():
+        display.show(Image.HAPPY)
+    elif button_b.is_pressed():
+        display.show(Image.SAD)
+    else:
+        display.show(Image.HEART_SMALL)
+    print(accelerometer.get_x())
+    sleep(200)
+</textarea>
+    <div class="row">
+      <button id="btn-run" class="needs-serial primary" disabled>Run</button>
+      <button id="btn-stop" class="needs-serial" disabled>Stop</button>
+      <button id="btn-save-main" class="needs-serial" disabled title="Writes main.py so it runs on every reset">Save as main.py</button>
+      <button id="btn-ask-bit" class="ask-bit">🤖 Ask Bit for help</button>
+    </div>
+    <p class="hint">Run sends the code to the REPL without saving it. Output appears in the console.</p>
+  </section>
+
+  <!-- File manager -->
+  <section class="card" id="card-files">
+    <h2>Files on the micro:bit
+      <span class="tools"><button id="btn-files-refresh" class="small needs-serial" disabled>Refresh</button></span>
+    </h2>
+    <table id="files"><tbody><tr><td class="muted">Connect serial (with MicroPython running) and press Refresh.</td></tr></tbody></table>
+    <div class="row">
+      <label class="button needs-serial-label" id="lbl-upload">
+        <input type="file" id="upload" hidden class="needs-serial" disabled> Upload file…
+      </label>
+      <span id="fs-status" class="status"></span>
+    </div>
+  </section>
+</main>
+
+<section id="view-inside" hidden>
+  <div class="inside-modebar"><div class="inside-mode">
+    <button data-mode="map" class="on">🗺️ Parts map</button><button data-mode="how">🔍 How it works</button>
+  </div></div>
+  <div id="inside-map">
+  <div class="inside-wrap">
+    <div class="inside-left">
+      <div class="inside-intro">
+        <h2>What's inside the micro:bit?</h2>
+        <p>Your program runs on the <b>processor</b>, but it needs a team of helper parts. Click any part to see what it does
+          and how it helps the others, or watch a signal travel through the board.</p>
+      </div>
+      <div id="inside-diagram"></div>
+      <div class="inside-legend">
+        <span class="lg data">data</span><span class="lg serial">serial</span><span class="lg power">power</span>
+        <span class="lg i2c">I²C sensor bus</span><span class="lg gpio">pins (GPIO)</span><span class="lg clock">clock</span><span class="lg radio">radio</span>
+      </div>
+      <div class="inside-scen"><span class="muted">▶ Watch how it works:</span></div>
+      <p id="inside-caption" class="inside-caption">Click a part to learn about it, or press a “watch” button.</p>
+    </div>
+    <aside id="inside-card" class="inside-card"></aside>
+  </div>
+  </div>
+  <div id="inside-how" hidden>
+    <div class="how-wrap">
+      <nav class="how-topics" aria-label="Topics"></nav>
+      <div class="how-content">
+        <div class="how-bar"><span id="how-status" class="how-status"></span>
+          <label class="check"><input type="checkbox" id="how-pretend"> 🎮 Pretend mode</label></div>
+        <div id="how-main"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="view-quiz" hidden>
+  <div id="quiz-main" class="quiz-wrap"></div>
+</section>
+
+<section id="view-blocks" hidden>
+  <div class="bk-toolbar">
+    <button id="bk-run" class="bk-big go">▶ Run</button>
+    <button id="bk-stop" class="bk-big stop">■ Stop</button>
+    <button id="bk-save" class="bk-big" title="Saves the program onto the micro:bit so it runs by itself">💾 Save to micro:bit</button>
+    <span class="bk-sep"></span>
+    <select id="bk-examples"><option value="">📚 Examples…</option></select>
+    <button id="bk-new">🆕 New</button>
+    <label class="button">📂 Open<input type="file" id="bk-import" accept=".json" hidden></label>
+    <button id="bk-export">⬇ Save file</button>
+    <button id="bk-python">🐍 Python</button>
+    <button id="bk-helper" class="bk-helper-btn">🤖 Helper</button>
+    <span id="bk-status" class="bk-status"></span>
+  </div>
+  <div class="bk-main">
+    <div id="blockly"></div>
+    <aside id="helper" class="helper" hidden aria-label="Coding helper">
+      <div class="helper-top">
+        <div id="helper-bot" title="Click to dress me up"></div>
+        <div class="helper-id"><b id="helper-name">Bit</b><span id="helper-count" class="muted"></span>
+          <div class="helper-btns"><button id="helper-check" class="small primary">🔍 Check my code</button><button id="helper-dress" class="small">👗 Dress up</button></div></div>
+        <button id="helper-close" class="small helper-x" aria-label="Close helper">✕</button>
+      </div>
+      <div id="helper-log" class="helper-log" aria-live="polite"></div>
+      <div id="helper-chips" class="helper-chips"><button>How do I use buttons?</button><button>Make a dice</button><button>Play music</button><button>Count things</button><button>My code doesn't work</button></div>
+      <form id="helper-form" class="helper-form"><input id="helper-input" placeholder="Ask me… e.g. how do I make a dice?" autocomplete="off"><button class="primary">Ask</button></form>
+    </aside>
+    <aside class="bk-side">
+      <h3>💬 micro:bit says <button id="kid-clear" class="small">Clear</button></h3>
+      <pre id="kid-out"></pre>
+      <div class="bk-py">
+        <h3>🐍 Python code <button id="bk-to-editor" class="small">Open in code editor</button></h3>
+        <pre id="py-preview"></pre>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<script src="vendor/blockly/blockly_compressed.js"></script>
+<script src="vendor/blockly/blocks_compressed.js"></script>
+<script src="vendor/blockly/python_compressed.js"></script>
+<script src="vendor/blockly/msg/en.js"></script>
+<script src="app.js"></script>
+<script src="blocks.js"></script>
+<script src="tour.js"></script>
+<script src="inside.js"></script>
+<script src="howitworks.js"></script>
+<script src="quiz.js"></script>
+<script src="search.js"></script>
+<script src="teacher.js"></script>
+<script src="helper.js"></script>
+<script src="pyhelper.js"></script>
+</body>
+</html>

@@ -1,0 +1,486 @@
+/* Coding helper for the Blocks tab: a robot that checks your blocks, explains errors, answers
+ * "how do I…?" questions and can add example blocks. It wears accessories won in the quiz.
+ * Runs fully offline. Uses globals from app.js, blocks.js, howitworks.js, quiz.js and search.js. */
+'use strict';
+
+/* ======================================================= accessories */
+const TIERS = {
+  junk:      { name: 'Junk',      color: '#8c959f', need: 'Score 0% on the quiz' },
+  common:    { name: 'Common',    color: '#2f81f7', need: 'Score 1–49% on the quiz' },
+  cool:      { name: 'Cool',      color: '#1a7f37', need: 'Score 50–79% on the quiz' },
+  epic:      { name: 'Epic',      color: '#8957e5', need: 'Score 80–99% on the quiz' },
+  legendary: { name: 'Legendary', color: '#d4a000', need: 'Score 100% on the quiz' },
+};
+const tierFor = (pct) => (pct <= 0 ? 'junk' : pct < 50 ? 'common' : pct < 80 ? 'cool' : pct < 100 ? 'epic' : 'legendary');
+
+const emo = (ch, x, y, size, extra = '') => `<text x="${x}" y="${y}" font-size="${size}" text-anchor="middle" dominant-baseline="central" ${extra}>${ch}</text>`;
+
+// slot: where it goes (one item per slot). draw: SVG for that layer.
+const ITEMS = {
+  trash:      { name: 'Trash can',        tier: 'junk', slot: 'ride', icon: '🗑️', draw: () => emo('🗑️', 100, 178, 94) },
+  banana:     { name: 'Banana peel',      tier: 'junk', slot: 'hand', icon: '🍌', draw: () => emo('🍌', 156, 150, 34) },
+  sock:       { name: 'Smelly sock hat',  tier: 'junk', slot: 'head', icon: '🧦', draw: () => emo('🧦', 100, 26, 46, 'transform="rotate(-20 100 26)"') + emo('💨', 136, 12, 20) },
+  cap:        { name: 'Baseball cap',     tier: 'common', slot: 'head', icon: '🧢', draw: () => emo('🧢', 100, 30, 56) },
+  partyhat:   { name: 'Party hat',        tier: 'common', slot: 'head', icon: '🎉',
+    draw: () => `<polygon points="78,44 122,44 100,-6" fill="#ff6b9d" stroke="#c2185b" stroke-width="2"/>
+      <path d="M86,30 L114,30 M92,16 L108,16" stroke="#ffd33d" stroke-width="5"/><circle cx="100" cy="-8" r="7" fill="#ffd33d"/>` },
+  glasses:    { name: 'Nerdy glasses',    tier: 'common', slot: 'face', icon: '👓', draw: () => emo('👓', 100, 72, 54) },
+  bow:        { name: 'Bow tie',          tier: 'common', slot: 'neck', icon: '🎀', draw: () => emo('🎀', 100, 110, 32) },
+  balloon:    { name: 'Balloon',          tier: 'common', slot: 'hand', icon: '🎈', draw: () => `<line x1="154" y1="148" x2="166" y2="96" stroke="#555" stroke-width="1.5"/>` + emo('🎈', 168, 80, 40) },
+  sunglasses: { name: 'Cool sunglasses',  tier: 'cool', slot: 'face', icon: '🕶️', draw: () => emo('🕶️', 100, 70, 58) },
+  headphones: { name: 'Headphones',       tier: 'cool', slot: 'head', icon: '🎧', draw: () => emo('🎧', 100, 52, 92) },
+  scarf:      { name: 'Cosy scarf',       tier: 'cool', slot: 'neck', icon: '🧣', draw: () => emo('🧣', 100, 116, 46) },
+  skateboard: { name: 'Skateboard',       tier: 'cool', slot: 'ride', icon: '🛹', draw: () => emo('🛹', 100, 210, 70) },
+  guitar:     { name: 'Guitar',           tier: 'cool', slot: 'hand', icon: '🎸', draw: () => emo('🎸', 158, 146, 46, 'transform="rotate(20 158 146)"') },
+  wizard:     { name: 'Wizard hat',       tier: 'epic', slot: 'head', icon: '🧙',
+    draw: () => `<ellipse cx="100" cy="44" rx="50" ry="9" fill="#5b2a9e"/><polygon points="68,44 132,44 112,-22" fill="#6f3cc4" stroke="#3d1a70" stroke-width="2"/>
+      ${emo('✦', 92, 22, 14, 'fill="#ffd33d"')}${emo('✦', 108, 0, 11, 'fill="#ffd33d"')}${emo('★', 112, 34, 12, 'fill="#ffd33d"')}` },
+  cape:       { name: 'Hero cape',        tier: 'epic', slot: 'back', icon: '🦸',
+    draw: () => `<path d="M72,112 L128,112 L156,206 Q100,222 44,206 Z" fill="#d1242f" stroke="#8b1a1a" stroke-width="2"/>` },
+  wand:       { name: 'Magic wand',       tier: 'epic', slot: 'hand', icon: '🪄', draw: () => emo('🪄', 160, 140, 40) + emo('✨', 176, 116, 22) },
+  goggles:    { name: 'Science goggles',  tier: 'epic', slot: 'face', icon: '🥽', draw: () => emo('🥽', 100, 70, 58) },
+  rocket:     { name: 'Rocket boots',     tier: 'epic', slot: 'ride', icon: '🚀',
+    draw: () => emo('🔥', 86, 216, 26) + emo('🔥', 114, 216, 26) + emo('🚀', 70, 198, 26, 'transform="rotate(45 70 198)"') + emo('🚀', 130, 198, 26, 'transform="rotate(45 130 198)"') },
+  crown:      { name: 'Golden crown',     tier: 'legendary', slot: 'head', icon: '👑', draw: () => emo('👑', 100, 24, 58) },
+  glow:       { name: 'Golden glow',      tier: 'legendary', slot: 'aura', icon: '✨',
+    draw: () => `<circle cx="100" cy="110" r="100" fill="url(#bot-glow)"/>${emo('✨', 30, 40, 24)}${emo('✨', 172, 60, 20)}${emo('✨', 160, 190, 18)}${emo('✨', 36, 170, 18)}` },
+  rainbow:    { name: 'Rainbow',          tier: 'legendary', slot: 'aura', icon: '🌈', draw: () => emo('🌈', 100, 70, 170, 'opacity=".55"') },
+  trophy:     { name: 'Champion trophy',  tier: 'legendary', slot: 'hand', icon: '🏆', draw: () => emo('🏆', 160, 138, 42) },
+};
+const SLOT_ORDER_BEHIND = ['aura', 'back'];
+const SLOT_ORDER_FRONT = ['neck', 'face', 'head', 'hand', 'ride'];
+const SLOT_NAMES = { head: 'Head', face: 'Face', neck: 'Neck', hand: 'Hand', ride: 'Feet / ride', back: 'Back', aura: 'Aura' };
+
+/* ------------------------------------------------------ saved state */
+const HELPER_KEY = 'microbit-helper';
+let HS = { name: 'Bit', owned: [], equipped: {} };
+try { HS = { ...HS, ...JSON.parse(localStorage.getItem(HELPER_KEY) || '{}') }; } catch {}
+const saveHS = () => { try { localStorage.setItem(HELPER_KEY, JSON.stringify(HS)); } catch {} };
+
+function botSVG(equipped = HS.equipped, cls = '') {
+  const layer = (slots) => slots.map((s) => (equipped[s] && ITEMS[equipped[s]] ? ITEMS[equipped[s]].draw() : '')).join('');
+  let chest = '';
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) chest += `<rect x="${86 + c * 10}" y="${122 + r * 10}" width="7" height="7" rx="1.5" class="bot-led" style="animation-delay:${(r * 3 + c) * 0.15}s"/>`;
+  return `<svg viewBox="0 -28 200 256" class="bot ${cls}" aria-label="${esc(HS.name)} the helper robot">
+    <defs><radialGradient id="bot-glow"><stop offset="0" stop-color="#ffd33d" stop-opacity=".55"/><stop offset="1" stop-color="#ffd33d" stop-opacity="0"/></radialGradient></defs>
+    ${layer(SLOT_ORDER_BEHIND)}
+    <g class="bot-body">
+      <line x1="100" y1="20" x2="100" y2="40" class="bot-line"/><circle cx="100" cy="16" r="7" class="bot-ant"/>
+      <path d="M70,120 Q50,130 48,150" class="bot-limb"/><path d="M130,120 Q150,130 152,148" class="bot-limb"/>
+      <circle cx="48" cy="152" r="7" class="bot-hand"/><circle cx="152" cy="150" r="7" class="bot-hand"/>
+      <rect x="80" y="164" width="13" height="28" rx="5" class="bot-leg"/><rect x="107" y="164" width="13" height="28" rx="5" class="bot-leg"/>
+      <ellipse cx="86" cy="194" rx="12" ry="6" class="bot-leg"/><ellipse cx="114" cy="194" rx="12" ry="6" class="bot-leg"/>
+      <rect x="68" y="106" width="64" height="62" rx="14" class="bot-torso"/>${chest}
+      <rect x="54" y="40" width="92" height="64" rx="20" class="bot-head"/>
+      <rect x="66" y="52" width="68" height="40" rx="12" class="bot-face"/>
+      <g class="bot-eyes"><circle cx="85" cy="70" r="6.5" class="bot-eye"/><circle cx="115" cy="70" r="6.5" class="bot-eye"/></g>
+      <path d="M89,81 Q100,90 111,81" class="bot-mouth"/>
+    </g>
+    ${layer(SLOT_ORDER_FRONT)}
+  </svg>`;
+}
+
+/* ======================================================= helper panel */
+const hPanel = $('helper');
+function renderHelperTop() {
+  $('helper-bot').innerHTML = botSVG();
+  $('helper-name').textContent = HS.name;
+  const n = HS.owned.length, total = Object.keys(ITEMS).length;
+  $('helper-count').textContent = `${n}/${total} accessories`;
+}
+
+function say(html, opts = {}) {
+  const log = $('helper-log');
+  const m = document.createElement('div'); m.className = 'hm bot-msg'; m.innerHTML = html;
+  if (opts.actions) {
+    const row = document.createElement('div'); row.className = 'hm-actions';
+    for (const [label, fn, primary] of opts.actions) {
+      const b = document.createElement('button'); b.className = 'small' + (primary ? ' primary' : ''); b.textContent = label; b.onclick = fn; row.appendChild(b);
+    }
+    m.appendChild(row);
+  }
+  log.appendChild(m); log.scrollTop = log.scrollHeight;
+  const bot = document.querySelector('#helper-bot .bot'); if (bot) { bot.classList.remove('talk'); void bot.offsetWidth; bot.classList.add('talk'); }
+}
+function you(text) {
+  const m = document.createElement('div'); m.className = 'hm you-msg'; m.textContent = text;
+  $('helper-log').appendChild(m);
+}
+
+const CHIPS = {
+  blocks: ['How do I use buttons?', 'Make a dice', 'Play music', 'Count things', 'My code doesn\'t work'],
+  python: ['Check my code', 'What is indentation?', 'How do I make a dice?', '= vs ==', 'What does import mean?'],
+};
+let lastMode = null;
+function openHelper() {
+  const mode = helperMode();
+  if (hPanel.parentNode !== document.body) document.body.appendChild(hPanel);  // works on any tab
+  hPanel.style.top = Math.max(0, document.querySelector('header').getBoundingClientRect().bottom) + 'px';
+  hPanel.hidden = false;
+  hPanel.classList.toggle('py', mode === 'python');
+  $('bk-helper').classList.toggle('on', mode === 'blocks');
+  renderHelperTop();
+  $('helper-chips').innerHTML = CHIPS[mode].map((t) => `<button type="button">${esc(t)}</button>`).join('');
+  $('helper-chips').querySelectorAll('button').forEach((b) => (b.onclick = () => ask(b.textContent)));
+  $('helper-input').placeholder = mode === 'python' ? 'Ask about Python… e.g. what is a loop?' : 'Ask me… e.g. how do I make a dice?';
+  if (mode !== lastMode) {
+    lastMode = mode;
+    say(mode === 'python'
+      ? `Hi! I'm <b>${esc(HS.name)}</b> 🤖🐍. I can <b>check your Python</b> for mistakes, explain error messages from the console, and answer Python questions.`
+      : `Hi! I'm <b>${esc(HS.name)}</b> 🤖. Stuck on your code? I can <b>check your blocks</b> for mistakes, explain errors, or show you how to do things.`,
+    { actions: [['🔍 Check my code', () => ask('check my code'), true]] });
+  }
+  setTimeout(() => $('helper-input').focus(), 50);
+  if (ws) Blockly.svgResize(ws);
+}
+function closeHelper() { hPanel.hidden = true; $('bk-helper').classList.remove('on'); }
+// Bit follows you between the Blocks and Manager tabs, and steps aside on the others.
+const _showViewForHelper = showView;
+showView = function (name) {
+  _showViewForHelper(name);
+  if (hPanel.hidden) return;
+  if (name === 'blocks' || name === 'manager') openHelper(); else closeHelper();
+};
+window.addEventListener('resize', () => { if (!hPanel.hidden) hPanel.style.top = Math.max(0, document.querySelector('header').getBoundingClientRect().bottom) + 'px'; });
+
+/* ================================================= checking the code */
+const allBlocks = () => ws.getAllBlocks(false);
+const has = (type) => allBlocks().some((b) => b.type === type);
+const HAT_TYPES = new Set(['mb_on_start', 'mb_forever', 'mb_on_button', 'mb_on_gesture', 'mb_on_pin_touched', 'mb_every', 'mb_on_radio']);
+const blockLabel = (b) => (BLOCK_TEXT[b.type] || b.type.replace(/^(mb_|controls_|math_|logic_|text_)/, '').replace(/_/g, ' ')).trim();
+
+function pointAt(block, msg) {
+  if (!block || block.disposed) return;
+  ws.centerOnBlock(block.id);
+  block.select?.();
+  block.setWarningText?.(msg);
+  setTimeout(() => { if (!block.disposed) block.setWarningText?.(null); }, 9000);
+}
+
+function explainError() {
+  const errs = [...$('kid-out').querySelectorAll('.err')].map((e) => e.textContent).join('\n');
+  if (!errs.trim()) return null;
+  const last = errs.trim().split('\n').filter((l) => /Error|Interrupt/.test(l)).pop() || '';
+  const line = (errs.match(/line (\d+)/g) || []).pop();
+  const E = [
+    [/KeyboardInterrupt/, null],  // just the Stop button
+    [/index out of range|ValueError.*(pixel|coordinate)/i, '💡 An LED position was outside the screen. <b>x</b> and <b>y</b> must be between <b>0 and 4</b> (there are only 5 LEDs across and down).'],
+    [/NameError: name '?(\w+)'?/, (m) => `🤔 I don't know anything called <b>${esc(m[1])}</b>. Did you use a variable before giving it a value, or rename it? Try a <b>set … to</b> block in 🚀 on start.`],
+    [/MemoryError/, '🧠 Your program is too big for the micro:bit\'s tiny memory (16 KB)! Try removing some blocks, or use loops instead of copying the same blocks lots of times.'],
+    [/ZeroDivisionError/, '➗ Something tried to <b>divide by zero</b>, which is impossible! Check your ÷ blocks.'],
+    [/TypeError.*(str|concat|unsupported operand)/i, '🔤 You mixed <b>words</b> and <b>numbers</b> in a maths block. Use <b>create text with</b> (🔤 Text) to join them instead.'],
+    [/TypeError/, '🧩 Two blocks that don\'t fit together were used: for example, a word where a number was needed.'],
+    [/OSError.*28|ENOSPC/, '💾 The micro:bit\'s storage is full. Delete some files in 🧰 Manager → Files.'],
+    [/SyntaxError/, '😵 The micro:bit couldn\'t understand the program. This is probably my fault, not yours! Try removing the last block you added.'],
+  ];
+  for (const [re, text] of E) {
+    const m = last.match(re);
+    if (m) return text === null ? null : (typeof text === 'function' ? text(m) : text) + `<div class="hm-err">The micro:bit said: <code>${esc(last.trim())}</code>${line ? ` (${line} of the Python)` : ''}</div>`;
+  }
+  return `🐞 The micro:bit reported a problem: <code>${esc(last.trim())}</code>. Check the blocks you added most recently.`;
+}
+
+function checkCode() {
+  const tips = [];
+  const blocks = allBlocks();
+  const err = explainError();
+  if (err) tips.push({ html: err });
+  if (!blocks.length) {
+    tips.push({ html: '🧺 Your workspace is empty! Open <b>🟦 Basic</b> and drag out a <b>🚀 on start</b> block, then put a <b>show icon</b> block inside it.',
+      actions: [['Add a starter for me', () => addRecipe(RECIPES.find((r) => r.id === 'hello')), true]] });
+    return tips;
+  }
+  const tops = ws.getTopBlocks(true);
+  const loose = tops.filter((b) => !HAT_TYPES.has(b.type) && !b.type.startsWith('procedures_def'));
+  if (loose.length) {
+    tips.push({ html: `🧲 <b>${loose.length}</b> block${loose.length > 1 ? 's are' : ' is'} floating on ${loose.length > 1 ? 'their' : 'its'} own (they look faded). Blocks only run when they're <b>snapped inside</b> an event block like 🚀 on start, 🔁 forever or 🔘 when button pressed.`,
+      actions: [['Show me', () => pointAt(loose[0], 'Snap me inside an event block!'), true]] });
+  }
+  for (const h of tops.filter((b) => HAT_TYPES.has(b.type))) {
+    if (!h.getInputTargetBlock('DO')) {
+      tips.push({ html: `📭 Your <b>${esc(blockLabel(h))}</b> block is empty, so nothing will happen. Put some blocks inside it!`,
+        actions: [['Show me', () => pointAt(h, 'Put some blocks inside me!'), true]] });
+    }
+  }
+  for (const f of tops.filter((b) => b.type === 'mb_forever')) {
+    const inside = f.getDescendants(false);
+    if (inside.some((b) => b.type === 'mb_print') && !inside.some((b) => b.type === 'mb_pause')) {
+      tips.push({ html: '⏩ Your <b>forever</b> loop prints super fast and will flood the “micro:bit says” box. Add a <b>⏸️ pause</b> block (like 500 ms) inside it.',
+        actions: [['Show me', () => pointAt(f, 'Add a pause block inside me'), true]] });
+    }
+  }
+  for (const b of blocks.filter((x) => ['mb_plot', 'mb_unplot', 'mb_point'].includes(x.type))) {
+    for (const k of ['X', 'Y']) {
+      const c = b.getInputTargetBlock(k);
+      if (c && c.type === 'math_number' && (+c.getFieldValue('NUM') < 0 || +c.getFieldValue('NUM') > 4)) {
+        tips.push({ html: `📍 An LED block uses <b>${k.toLowerCase()} = ${c.getFieldValue('NUM')}</b>, but x and y only go from <b>0 to 4</b>.`,
+          actions: [['Show me', () => pointAt(b, 'x and y must be 0 to 4'), true]] });
+      }
+    }
+  }
+  if (['mb_melody', 'mb_tone', 'mb_tempo'].some(has)) {
+    tips.push({ html: '🎧 You\'re using music. The micro:bit v1 has <b>no speaker</b>, so clip headphones or a speaker to <b>pin 0</b> and <b>GND</b> to hear it.' });
+  }
+  if (has('mb_heading') && !has('mb_calibrate')) {
+    tips.push({ html: '🧭 Your code uses the compass. The first time it runs, the micro:bit will ask you to <b>tilt it until the screen fills with dots</b>. That\'s calibration, and it\'s normal!' });
+  }
+  if (['mb_radio_send', 'mb_on_radio', 'mb_radio_msg'].some(has) && !has('mb_radio_group')) {
+    tips.push({ html: '📡 You\'re using the radio. Add <b>radio set group</b> in 🚀 on start, and use the <b>same number</b> on every micro:bit so they can hear each other.' });
+  }
+  if (has('mb_radio_msg') && !has('mb_on_radio')) {
+    tips.push({ html: '📨 <b>received message</b> only gets filled in when a message arrives. Use it inside a <b>📡 when radio receives a message</b> block.' });
+  }
+  const sets = new Set(blocks.filter((b) => ['variables_set', 'math_change', 'controls_for'].includes(b.type)).map((b) => b.getFieldValue('VAR')));
+  for (const g of blocks.filter((b) => b.type === 'variables_get')) {
+    if (!sets.has(g.getFieldValue('VAR'))) {
+      const name = g.getField('VAR').getText();
+      tips.push({ html: `📦 The variable <b>${esc(name)}</b> is used but never <b>set</b>. It will just stay <b>0</b>. Use a <b>set ${esc(name)} to</b> block first.`,
+        actions: [['Show me', () => pointAt(g, 'This variable is never set'), true]] });
+      break;
+    }
+  }
+  if (!tips.length) {
+    tips.push({ html: `✅ Your code looks great! ${port ? 'Press <b>▶ Run</b> to try it on the micro:bit.' : 'Press <b>▶ Run</b>. It will ask you to connect the micro:bit first.'} If something still doesn't work, tell me what you expected to happen.` });
+  }
+  return tips;
+}
+
+/* ===================================================== how-to recipes */
+const sh = (type, fields) => ({ shadow: { type, fields } });
+const NUM = (n) => sh('math_number', { NUM: n });
+const TXT = (t) => sh('text', { TEXT: t });
+const stackOf = (arr) => arr.reduceRight((next, b) => (next ? { ...b, next: { block: next } } : b), null);
+const RECIPES = [
+  { id: 'hello', title: 'Say hello', keys: 'hello start begin first starter show icon picture heart smile',
+    say: 'Here\'s a simple start: when the program begins, the micro:bit shows a heart and scrolls “Hi!”.',
+    blocks: [{ type: 'mb_on_start', inputs: { DO: { block: stackOf([{ type: 'mb_show_icon', fields: { ICON: 'HEART' } }, { type: 'mb_scroll', inputs: { TEXT: TXT('Hi!') } }]) } } }] },
+  { id: 'buttons', title: 'Use buttons A and B', keys: 'button buttons press pressed a b click',
+    say: 'Use the <b>🔘 when button pressed</b> event from 🟪 Input. Anything inside it runs when you press that button.',
+    blocks: [
+      { type: 'mb_on_button', fields: { BTN: 'a' }, inputs: { DO: { block: { type: 'mb_show_icon', fields: { ICON: 'HAPPY' } } } } },
+      { type: 'mb_on_button', fields: { BTN: 'b' }, inputs: { DO: { block: { type: 'mb_show_icon', fields: { ICON: 'SAD' } } } } }] },
+  { id: 'dice', title: 'Make a dice', keys: 'dice die random roll number game shake chance',
+    say: 'A dice! Shake the micro:bit and it shows a <b>random number from 1 to 6</b>, using <b>pick random</b> from 🔢 Math.',
+    blocks: [{ type: 'mb_on_gesture', fields: { G: 'shake' }, inputs: { DO: { block: { type: 'mb_show', inputs: { TEXT: { block: { type: 'math_random_int', inputs: { FROM: NUM(1), TO: NUM(6) } } } } } } } }] },
+  { id: 'temp', title: 'Show the temperature', keys: 'temperature temp hot cold warm thermometer fahrenheit celsius degrees',
+    say: 'Press A to scroll the temperature. The <b>🌡️ temperature</b> block can give °C or °F. I picked °F here.',
+    blocks: [{ type: 'mb_on_button', fields: { BTN: 'a' }, inputs: { DO: { block: { type: 'mb_scroll', inputs: { TEXT: { block: { type: 'mb_temperature', fields: { UNIT: 'F' } } } } } } } }] },
+  { id: 'music', title: 'Play music', keys: 'music song sound tune melody play noise beep tone speaker',
+    say: 'Use <b>🎶 play melody</b> from 🎵 Music. Remember: plug headphones or a speaker into <b>pin 0</b> and <b>GND</b> to hear it!',
+    blocks: [{ type: 'mb_on_button', fields: { BTN: 'a' }, inputs: { DO: { block: { type: 'mb_melody', fields: { M: 'BIRTHDAY', WAIT: 'False' } } } } }] },
+  { id: 'counter', title: 'Count things (variables)', keys: 'count counter score variable remember number add plus points keep track',
+    say: 'A <b>variable</b> is a box that remembers a number. A adds 1 and shows it, and B sets it back to 0.',
+    blocks: [
+      { type: 'mb_on_start', inputs: { DO: { block: { type: 'variables_set', fields: { VAR: { name: 'count' } }, inputs: { VALUE: { block: { type: 'math_number', fields: { NUM: 0 } } } } } } } },
+      { type: 'mb_on_button', fields: { BTN: 'a' }, inputs: { DO: { block: stackOf([
+        { type: 'math_change', fields: { VAR: { name: 'count' } }, inputs: { DELTA: { block: { type: 'math_number', fields: { NUM: 1 } } } } },
+        { type: 'mb_show', inputs: { TEXT: { block: { type: 'variables_get', fields: { VAR: { name: 'count' } } } } } }]) } } },
+      { type: 'mb_on_button', fields: { BTN: 'b' }, inputs: { DO: { block: { type: 'variables_set', fields: { VAR: { name: 'count' } }, inputs: { VALUE: { block: { type: 'math_number', fields: { NUM: 0 } } } } } } } }] },
+  { id: 'radio', title: 'Send radio messages', keys: 'radio send message friend another two talk chat wireless receive',
+    say: 'Put this on <b>two micro:bits</b>. Press A on one and the other shows a duck and your message! Both must use the same <b>group</b>.',
+    blocks: [
+      { type: 'mb_on_start', inputs: { DO: { block: { type: 'mb_radio_group', inputs: { G: NUM(1) } } } } },
+      { type: 'mb_on_button', fields: { BTN: 'a' }, inputs: { DO: { block: { type: 'mb_radio_send', inputs: { MSG: TXT('hi') } } } } },
+      { type: 'mb_on_radio', inputs: { DO: { block: stackOf([{ type: 'mb_show_icon', fields: { ICON: 'DUCK' } },
+        { type: 'mb_scroll', inputs: { TEXT: { block: { type: 'mb_radio_msg' } } } }]) } } }] },
+  { id: 'animate', title: 'Make an animation', keys: 'animation animate move moving beat heartbeat flash blink loop repeat forever',
+    say: 'An animation is pictures shown one after another with <b>pauses</b> between them, inside a <b>🔁 forever</b> loop.',
+    blocks: [{ type: 'mb_forever', inputs: { DO: { block: stackOf([
+      { type: 'mb_show_icon', fields: { ICON: 'HEART' } }, { type: 'mb_pause', inputs: { MS: NUM(400) } },
+      { type: 'mb_show_icon', fields: { ICON: 'HEART_SMALL' } }, { type: 'mb_pause', inputs: { MS: NUM(400) } }]) } } }] },
+  { id: 'tilt', title: 'React to tilting', keys: 'tilt tilting lean left right accelerometer arrow direction level angle',
+    say: 'The <b>acceleration x</b> block goes negative when tilted left and positive when tilted right. This shows an arrow that way.',
+    blocks: [{ type: 'mb_forever', inputs: { DO: { block: { type: 'controls_if', extraState: { elseIfCount: 1, hasElse: true }, inputs: {
+      IF0: { block: { type: 'logic_compare', fields: { OP: 'LT' }, inputs: { A: { block: { type: 'mb_accel', fields: { AXIS: 'x' } } }, B: { block: { type: 'math_number', fields: { NUM: -300 } } } } } },
+      DO0: { block: { type: 'mb_show_icon', fields: { ICON: 'ARROW_W' } } },
+      IF1: { block: { type: 'logic_compare', fields: { OP: 'GT' }, inputs: { A: { block: { type: 'mb_accel', fields: { AXIS: 'x' } } }, B: { block: { type: 'math_number', fields: { NUM: 300 } } } } } },
+      DO1: { block: { type: 'mb_show_icon', fields: { ICON: 'ARROW_E' } } },
+      ELSE: { block: { type: 'mb_show_icon', fields: { ICON: 'SQUARE' } } } } } } } }] },
+  { id: 'light', title: 'Night light', keys: 'light dark night lamp bright sensor sense darkness',
+    say: 'When it gets <b>dark</b> (light level below 20) the screen lights up. Otherwise it turns off.',
+    blocks: [{ type: 'mb_forever', inputs: { DO: { block: stackOf([{ type: 'controls_if', extraState: { hasElse: true }, inputs: {
+      IF0: { block: { type: 'logic_compare', fields: { OP: 'LT' }, inputs: { A: { block: { type: 'mb_light' } }, B: { block: { type: 'math_number', fields: { NUM: 20 } } } } } },
+      DO0: { block: { type: 'mb_show_icon', fields: { ICON: 'SQUARE' } } },
+      ELSE: { block: { type: 'mb_clear' } } } }, { type: 'mb_pause', inputs: { MS: NUM(200) } }]) } } }] },
+  { id: 'touch', title: 'Use touch pins', keys: 'touch pin pins finger tap gnd',
+    say: 'Hold <b>GND</b> with one hand and touch <b>pin 0</b> with the other. Your body completes the circuit!',
+    blocks: [{ type: 'mb_on_pin_touched', fields: { PIN: '0' }, inputs: { DO: { block: { type: 'mb_show_icon', fields: { ICON: 'SURPRISED' } } } } }] },
+  { id: 'compass', title: 'Make a compass', keys: 'compass north south east west direction heading magnet',
+    say: 'The <b>🧭 compass heading</b> is 0 for north, 90 east, 180 south and 270 west. This scrolls it every second.',
+    blocks: [{ type: 'mb_every', fields: { MS: 1000 }, inputs: { DO: { block: { type: 'mb_scroll', inputs: { TEXT: { block: { type: 'mb_heading' } } } } } } }] },
+  { id: 'repeat', title: 'Repeat things', keys: 'repeat times loop again many several copy',
+    say: 'Instead of copying blocks, use <b>🔁 repeat</b> from Loops. This scrolls “hi” 3 times.',
+    blocks: [{ type: 'mb_on_start', inputs: { DO: { block: { type: 'controls_repeat_ext', inputs: { TIMES: NUM(3), DO: { block: { type: 'mb_scroll', inputs: { TEXT: TXT('hi') } } } } } } } }] },
+  { id: 'ifelse', title: 'Make decisions (if / else)', keys: 'if else decision choose check condition when otherwise compare',
+    say: 'An <b>if … else</b> block (🔀 Logic) checks something and picks what to do. Here: if A is pressed show yes, else show no.',
+    blocks: [{ type: 'mb_forever', inputs: { DO: { block: { type: 'controls_if', extraState: { hasElse: true }, inputs: {
+      IF0: { block: { type: 'mb_button_pressed', fields: { BTN: 'a' } } },
+      DO0: { block: { type: 'mb_show_icon', fields: { ICON: 'YES' } } }, ELSE: { block: { type: 'mb_show_icon', fields: { ICON: 'NO' } } } } } } } }] },
+  { id: 'draw', title: 'Draw your own picture', keys: 'draw picture own custom leds pattern design image pixel',
+    say: 'Use <b>show LEDs</b> (🟦 Basic) and tick the boxes to make your own picture. Or use <b>💡 light x y</b> for single dots.',
+    blocks: [{ type: 'mb_on_start', inputs: { DO: { block: { type: 'mb_show_leds', fields: { L00: true, L04: true, L22: true, L40: true, L44: true } } } } }] },
+  { id: 'save', title: 'Keep my program on the micro:bit', keys: 'save keep battery unplug forever store run without computer main',
+    say: 'Press <b>💾 Save to micro:bit</b> in the toolbar. Your program then runs every time the micro:bit turns on, even on batteries!' },
+];
+
+function matchRecipe(q) {
+  const words = q.toLowerCase().split(/[^a-z0-9+]+/).filter((w) => w.length > 2);
+  let best = null, bestScore = 0;
+  for (const r of RECIPES) {
+    const keys = (r.keys + ' ' + r.title.toLowerCase()).split(/\s+/);
+    let s = 0;
+    for (const w of words) if (keys.some((k) => k === w || (w.length > 3 && k.length > 3 && (k.startsWith(w) || w.startsWith(k))))) s++;
+    if (s > bestScore) { best = r; bestScore = s; }
+  }
+  return best;
+}
+
+function addRecipe(r) {
+  if (!r?.blocks) return;
+  const box = ws.getBlocksBoundingBox();
+  const empty = !ws.getTopBlocks(false).length;
+  let x = empty ? 30 : box.right + 60, y = empty ? 30 : Math.max(20, box.top);
+  let first = null;
+  Blockly.Events.setGroup(true);
+  try {
+    for (const json of r.blocks) {
+      const b = Blockly.serialization.blocks.append(json, ws);
+      b.moveTo(new Blockly.utils.Coordinate(x, y));
+      y += b.getHeightWidth().height + 30;
+      first = first || b;
+    }
+  } finally { Blockly.Events.setGroup(false); }
+  if (first) { ws.centerOnBlock(first.id); first.select?.(); }
+  say(`➕ I added the <b>${esc(r.title)}</b> blocks to your workspace. Press <b>▶ Run</b> to try them! You can change anything you like.`);
+}
+
+/* =========================================================== asking */
+const STUCK = /(not|n't|isnt|doesnt|dont|wont|cant) (work|working|run|go|show|do)|broken|error|wrong|bug|stuck|check|help me|problem|fix|nothing happens/i;
+
+const helperMode = () => ($('view-manager').hidden ? 'blocks' : 'python');
+function ask(q) {
+  q = q.trim(); if (!q) return;
+  you(q);
+  if (helperMode() === 'python') { setTimeout(() => askPython(q), 250); return; }
+  setTimeout(() => {
+    if (STUCK.test(q) || /^check/i.test(q)) {
+      const tips = checkCode();
+      say(tips.length > 1 ? `I looked at your blocks and found <b>${tips.length}</b> things:` : 'I looked at your blocks:');
+      tips.forEach((t) => say(t.html, { actions: t.actions }));
+      return;
+    }
+    if (/^(hi|hello|hey)\b/i.test(q)) return say(`Hello! 👋 Ask me “how do I make a dice?” or press <b>Check my code</b> if something isn't working.`);
+    if (/(who are you|your name)/i.test(q)) return say(`I'm <b>${esc(HS.name)}</b>, your coding helper! Win accessories in the 🏆 Quiz to dress me up.`);
+    if (/\b(accessor\w*|hats?|dress(es)?|dress up|wardrobe|outfits?|costumes?|crown|trash can)\b/i.test(q)) return say('Win accessories by finishing the 🏆 <b>Quiz</b>. The better your score, the better the prize! Then press <b>👗 Dress up</b>.',
+      { actions: [['👗 Dress up', openWardrobe, true], ['🏆 Take the quiz', () => showView('quiz')]] });
+    const r = matchRecipe(q);
+    const found = search(q).filter((e) => e.kind !== 'Quiz answer').slice(0, 2);
+    if (r) {
+      say(`<b>${esc(r.title)}</b>: ${r.say}`, { actions: r.blocks ? [['➕ Add these blocks for me', () => addRecipe(r), true]] : [] });
+    }
+    if (found.length) {
+      say(r ? 'Want to learn how it works inside? 👇' : 'Here\'s where you can learn about that:',
+        { actions: found.map((e) => [`${e.icon} ${e.title}`, () => { closeHelper(); e.go(); }]) });
+    }
+    if (!r && !found.length) {
+      say('Hmm, I\'m not sure about that one. 🤔 Try one of these:', { actions: ['How do I use buttons?', 'Make a dice', 'Play music', 'Count things', 'My code doesn\'t work']
+        .map((t) => [t, () => ask(t)]) });
+    }
+  }, 250);
+}
+
+/* ========================================================== wardrobe */
+let wardrobe = null;
+function openWardrobe() {
+  if (!wardrobe) {
+    wardrobe = document.createElement('div'); wardrobe.className = 'tour-overlay'; wardrobe.hidden = true;
+    wardrobe.innerHTML = `<div class="wr" role="dialog" aria-modal="true" aria-labelledby="wr-title">
+      <div class="wr-left"><div id="wr-bot"></div><h2 id="wr-title"></h2><button class="small" id="wr-rename">✏️ Rename</button>
+        <p class="muted" id="wr-count"></p><button class="primary" id="wr-quiz">🏆 Win more in the quiz</button></div>
+      <div class="wr-right"><div class="wr-head"><h3>👗 Dress up your helper</h3><button id="wr-close">Done ✓</button></div>
+        <p class="muted">Click an accessory to put it on or take it off. One per spot (head, face, hand…).</p><div id="wr-items"></div></div></div>`;
+    document.body.appendChild(wardrobe);
+    $('wr-close').onclick = () => { wardrobe.hidden = true; };
+    wardrobe.addEventListener('click', (e) => { if (e.target === wardrobe) wardrobe.hidden = true; });
+    $('wr-rename').onclick = () => {
+      const n = prompt('What should your helper be called?', HS.name);
+      if (n && n.trim()) { HS.name = n.trim().slice(0, 20); saveHS(); renderWardrobe(); renderHelperTop(); }
+    };
+    $('wr-quiz').onclick = () => { wardrobe.hidden = true; closeHelper(); showView('quiz'); };
+    document.addEventListener('keydown', (e) => { if (!wardrobe.hidden && e.key === 'Escape') wardrobe.hidden = true; });
+  }
+  renderWardrobe();
+  wardrobe.hidden = false;
+}
+
+function renderWardrobe() {
+  $('wr-bot').innerHTML = botSVG();
+  $('wr-title').textContent = HS.name;
+  $('wr-count').textContent = `${HS.owned.length} of ${Object.keys(ITEMS).length} accessories collected`;
+  let html = '';
+  for (const [tid, t] of Object.entries(TIERS)) {
+    const items = Object.entries(ITEMS).filter(([, it]) => it.tier === tid);
+    html += `<div class="wr-tier"><div class="wr-tier-h" style="--tc:${t.color}"><b>${t.name}</b><span>${t.need}</span></div><div class="wr-grid">`;
+    for (const [id, it] of items) {
+      const own = HS.owned.includes(id), on = HS.equipped[it.slot] === id;
+      html += `<button class="wr-item${own ? '' : ' locked'}${on ? ' on' : ''}" data-id="${id}" style="--tc:${t.color}" ${own ? '' : 'disabled'}
+        title="${own ? (on ? 'Take off' : 'Put on') : '🔒 ' + t.need}"><span class="wr-ico">${own ? it.icon : '🔒'}</span>
+        <span class="wr-name">${own ? it.name : '???'}</span><span class="wr-slot">${SLOT_NAMES[it.slot]}${on ? ' · wearing' : ''}</span></button>`;
+    }
+    html += '</div></div>';
+  }
+  $('wr-items').innerHTML = html;
+  $('wr-items').querySelectorAll('.wr-item:not(.locked)').forEach((b) => (b.onclick = () => {
+    const it = ITEMS[b.dataset.id];
+    if (HS.equipped[it.slot] === b.dataset.id) delete HS.equipped[it.slot]; else HS.equipped[it.slot] = b.dataset.id;
+    saveHS(); renderWardrobe(); if (!hPanel.hidden) renderHelperTop();
+  }));
+}
+
+/* ================================================ quiz reward hook */
+// Called by the quiz results screen. Gives one accessory from the tier the score earned.
+function awardAccessory(pct) {
+  const order = ['junk', 'common', 'cool', 'epic', 'legendary'];
+  const tier = tierFor(pct);
+  let pool = Object.entries(ITEMS).filter(([id, it]) => it.tier === tier && !HS.owned.includes(id));
+  if (!pool.length && tier !== 'junk') {  // already own that whole tier: fall back to a lower (non-junk) tier
+    for (let i = order.indexOf(tier) - 1; i >= 1 && !pool.length; i--) pool = Object.entries(ITEMS).filter(([id, it]) => it.tier === order[i] && !HS.owned.includes(id));
+  }
+  if (!pool.length) return { tier, item: null };
+  // A 0% score always gives the trash can first
+  const [id, item] = pool.find(([pid]) => pid === 'trash') || pool[Math.floor(Math.random() * pool.length)];
+  HS.owned.push(id); saveHS();
+  return { tier, id, item };
+}
+
+function rewardHTML(r, pct) {
+  const t = TIERS[r.tier];
+  if (!r.item) return `<div class="qz-reward"><b>🎁 You already own every ${t.name} accessory!</b><p class="muted">Score higher to win something even better.</p></div>`;
+  const preview = { ...HS.equipped, [r.item.slot]: r.id };
+  return `<div class="qz-reward" style="--tc:${t.color}">
+    <div class="qz-reward-bot">${botSVG(preview, 'small')}</div>
+    <div><div class="qz-reward-tier">${t.name} prize</div><h3>🎁 ${HS.name} won: ${r.item.icon} ${r.item.name}!</h3>
+      <p>${{
+        junk: r.id === 'trash' ? 'Zero points… so it\'s the trash can for you! 😄 Try again to win something nicer.' : 'Zero points… more junk! 😄 Get some answers right for a better prize.',
+        common: 'Not bad! Score 50% or more next time for a Cool prize.',
+        cool: 'Nice work! Score 80% or more for an Epic prize.',
+        epic: 'Amazing! Get a perfect score for a Legendary prize.',
+        legendary: 'PERFECT! A Legendary prize for a micro:bit expert! 👑',
+      }[r.tier]}</p>
+      <div class="row"><button class="primary" id="qz-wear">👕 Put it on ${esc(HS.name)}</button><button id="qz-wardrobe">👗 See all accessories</button></div></div></div>`;
+}
+function bindReward(r) {
+  $('qz-wear')?.addEventListener('click', () => { HS.equipped[r.item.slot] = r.id; saveHS(); showView('blocks'); openHelper();
+    say(`Thanks for the <b>${esc(r.item.name)}</b>! ${r.item.icon} How do I look?`); });
+  $('qz-wardrobe')?.addEventListener('click', openWardrobe);
+}
+
+/* ============================================================ wiring */
+$('bk-helper').onclick = () => (hPanel.hidden ? openHelper() : closeHelper());
+$('helper-close').onclick = closeHelper;
+$('helper-dress').onclick = openWardrobe;
+$('helper-check').onclick = () => ask('check my code');
+$('helper-form').onsubmit = (e) => { e.preventDefault(); const v = $('helper-input').value; $('helper-input').value = ''; ask(v); };
+$('helper-bot').onclick = openWardrobe;
+
+$('btn-ask-bit').onclick = () => (hPanel.hidden ? openHelper() : closeHelper());
