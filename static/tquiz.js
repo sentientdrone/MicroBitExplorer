@@ -303,8 +303,18 @@ async function teacherBoard(gameId) {
         <div class="lg-clock ${endsAt - Date.now() < 30000 ? 'hurry' : ''}">${fmtClock((endsAt - Date.now()) / 1000)}</div></div>
       <p class="muted">${g.players} player${g.players === 1 ? '' : 's'}</p>
       <ol class="lgb-list">${g.top.map((p) => `<li class="${p.place <= 3 ? 'medal' + p.place : ''}"><span class="lgb-place">${p.place <= 3 ? ['🥇', '🥈', '🥉'][p.place - 1] : p.place}</span>
-        <b>${esc(p.name)}</b>${g.mode === 'mining' ? `<span class="lgb-ores">${oreBadges(p.ores)}</span>` : `<span class="muted">${p.correct} right</span>`}<span class="lgb-score">${p.score}</span></li>`).join('') || '<li class="muted">Waiting for players…</li>'}</ol>
+        <b>${esc(p.name)}</b>${g.mode === 'mining' ? `<span class="lgb-ores">${oreBadges(p.ores)}</span>` : `<span class="muted">${p.correct} right</span>`}<span class="lgb-score">${p.score}</span>
+        <button class="small lgb-kick" data-kick="${esc(p.id)}" data-name="${esc(p.name)}" title="Kick ${esc(p.name)} out of this game" aria-label="Kick ${esc(p.name)} out of this game">🚫 Kick</button></li>`).join('') || '<li class="muted">Waiting for players…</li>'}</ol>
+      ${g.kicked?.length ? `<div class="lgb-kicked"><b>🚫 Kicked out:</b> ${g.kicked.map((p) => `<span>${esc(p.name)} <button class="small" data-unkick="${esc(p.id)}" title="Let ${esc(p.name)} back in, with their score">↩ Let back in</button></span>`).join('')}</div>` : ''}
+      <p class="tdlg-err" id="lgb-err"></p>
       <div class="row"><button class="danger" id="lgb-end">⏹ End the game now</button><button id="lgb-back">← Quizzes</button></div>`;
+    $('lgb').querySelectorAll('[data-kick]').forEach((b) => (b.onclick = async () => {
+      if (!confirm(`Kick ${b.dataset.name} out of this game?\n\nThey leave the leaderboard and can't join this game again, unless you press "Let back in".`)) return;
+      try { g = await exApi(`/games/${gameId}/kick`, { method: 'POST', body: { id: b.dataset.kick } }); draw(); } catch (e) { $('lgb-err').textContent = e.message; }
+    }));
+    $('lgb').querySelectorAll('[data-unkick]').forEach((b) => (b.onclick = async () => {
+      try { g = await exApi(`/games/${gameId}/unkick`, { method: 'POST', body: { id: b.dataset.unkick } }); draw(); } catch (e) { $('lgb-err').textContent = e.message; }
+    }));
     $('lgb-end').onclick = async () => { if (!confirm('End the game now and show the winners?')) return; g = await exApi(`/games/${gameId}/end`, { method: 'POST' }); draw(); };
     $('lgb-back').onclick = () => { clearInterval(boardTimer); openQuizManager(); };
   };
@@ -335,11 +345,22 @@ async function startLiveGame(q) {
       if (!document.querySelector('.lg-game')) { clearInterval(LG.timer); return; }
       drawClock();
       if (++n % 4 === 0) {
-        try { const st = await exApi(`/play/${LG.game.id}`); applyGame(st); if (st.ended) return gameOver(); drawBoard(); } catch {}
+        try { const st = await exApi(`/play/${LG.game.id}`); applyGame(st); if (st.ended) return gameOver(); drawBoard(); } catch (e) { if (lgKicked(e)) return; }
       }
       if (LG.endsAt && Date.now() > LG.endsAt + 1500) { try { const st = await exApi(`/play/${LG.game.id}`); applyGame(st); if (st.ended) gameOver(); } catch {} }
     }, 500);
-  } catch (e) { const el = $('tq-err'); if (el) el.textContent = e.message; }
+  } catch (e) { if (lgKicked(e)) return; const el = $('tq-err'); if (el) el.textContent = e.message; }
+}
+const LG_KICKED = /removed you from this game/;
+function lgKicked(e) {
+  if (!LG_KICKED.test(e?.message || '')) return false;
+  clearInterval(LG.timer);
+  $('quiz-main').innerHTML = `<div class="qz-card qz-results lg-kicked"><div class="lg-kicked-ico">🚫</div>
+    <h2>Your teacher removed you from this game</h2><p class="muted">You can't play this game any more. Ask your teacher if you think it was a mistake.</p>
+    <div class="row qz-end"><button class="primary" id="lg-home">🏠 Back to quiz start</button></div></div>`;
+  $('lg-home').onclick = quizStart;
+  boardReact('display.show(Image.NO)');
+  return true;
 }
 function applyGame(g) { LG.game = g; LG.endsAt = Date.now() + g.secondsLeft * 1000; if (g.me) LG.me = g.me; if (g.ores) LG.ores = g.ores; }
 
@@ -388,7 +409,9 @@ async function submitGameAnswer() {
   let r;
   try { r = await exApi(`/play/${LG.game.id}/answer`, { method: 'POST', body: { i: LG.question.i, choice: LG.selected } }); }
   catch (e) {
-    LG.busy = false; $('lg-submit').disabled = false; $('lg-hint').textContent = e.message;
+    LG.busy = false;
+    if (lgKicked(e)) return;
+    $('lg-submit').disabled = false; $('lg-hint').textContent = e.message;
     if (/time's up|ended/.test(e.message)) { try { applyGame(await exApi(`/play/${LG.game.id}`)); } catch {} gameOver(); }
     return;
   }

@@ -36,6 +36,7 @@ ORES = [  # name, emoji, value, chance weight
     ("Stone", "🪨", 1, 40), ("Coal", "🌑", 3, 25), ("Iron", "🔩", 6, 17),
     ("Gold", "🪙", 12, 10), ("Diamond", "💎", 25, 6), ("Emerald", "💚", 50, 2),
 ]
+KICKED_MESSAGE = "your teacher removed you from this game"
 MIN_ANSWER_SECONDS = 0.6  # stops answer-spamming
 # A kid's Bit (helper robot) saved on their account
 BIT_SLOTS = {"head", "face", "neck", "hand", "ride", "feet", "back", "aura"}
@@ -724,6 +725,8 @@ class Classroom:
         out = {"id": g["id"], "mode": g["mode"], "title": g["title"], "minutes": g["minutes"], "ended": g["ended"],
                "secondsLeft": 0 if g["ended"] else max(0, round(g["endsAt"] - now, 1)),
                "players": len(st), "top": st if full else st[:10], "ores": self.ore_table()}
+        if full:
+            out["kicked"] = [{"id": p["id"], "name": p["name"]} for p in g.get("kicked", {}).values()]
         if me_id:
             mine = next((p for p in st if p["id"] == me_id), None)
             out["me"] = mine
@@ -746,7 +749,7 @@ class Classroom:
             self._finish(old)
         now = time.time()
         g = {"id": secrets.token_hex(6), "quizId": quiz_id, "title": q["title"], "mode": mode, "minutes": minutes,
-             "started": now, "endsAt": now + minutes * 60, "ended": False, "players": {}}
+             "started": now, "endsAt": now + minutes * 60, "ended": False, "players": {}, "kicked": {}}
         self.games[g["id"]] = g
         for gid, old_g in list(self.games.items()):  # forget games that ended over a day ago
             if old_g["ended"] and now - old_g.get("endedAt", now) > 86400:
@@ -762,6 +765,33 @@ class Classroom:
         g = self._game(game_id)
         g["endsAt"] = min(g["endsAt"], time.time())
         self._finish(g)
+        return self._public_game(g, full=True)
+
+    def kick_player(self, game_id, token, body):
+        """The teacher removes a kid from a live game. Their score is kept aside (not shown),
+        so "let back in" can restore it if the teacher clicked the wrong name."""
+        self._require_teacher(token)
+        g = self._game(game_id)
+        pid = body.get("id")
+        if not isinstance(pid, str):
+            raise ApiError(400, "pick a player")
+        with self.lock:
+            p = g["players"].pop(pid, None)
+            if p is None:
+                if pid in g.setdefault("kicked", {}):
+                    return self._public_game(g, full=True)
+                raise ApiError(404, "that player isn't in this game")
+            g.setdefault("kicked", {})[pid] = p
+        return self._public_game(g, full=True)
+
+    def unkick_player(self, game_id, token, body):
+        self._require_teacher(token)
+        g = self._game(game_id)
+        with self.lock:
+            p = g.setdefault("kicked", {}).pop(body.get("id") if isinstance(body.get("id"), str) else "", None)
+            if p is None:
+                raise ApiError(404, "that player wasn't removed")
+            g["players"][p["id"]] = p
         return self._public_game(g, full=True)
 
     def _player(self, g, me, q):
@@ -788,6 +818,8 @@ class Classroom:
         if not me:
             raise ApiError(401, "unlock your account first, so you can play")
         g = self._game(game_id)
+        if me["id"] in g.get("kicked", {}):
+            raise ApiError(403, KICKED_MESSAGE)
         return g, me, self._quiz(g["quizId"])
 
     def join_game(self, game_id, code, student_token):
@@ -902,6 +934,10 @@ class Classroom:
                 return self.game_status_teacher(parts[1], token)
             if method == "POST" and len(parts) == 3 and parts[2] == "end":
                 return self.end_game(parts[1], token)
+            if method == "POST" and len(parts) == 3 and parts[2] == "kick":
+                return self.kick_player(parts[1], token, body)
+            if method == "POST" and len(parts) == 3 and parts[2] == "unkick":
+                return self.unkick_player(parts[1], token, body)
         if parts[:1] == ["play"] and len(parts) >= 2:
             if method == "GET" and len(parts) == 2:
                 return self.game_status(parts[1], code, student)

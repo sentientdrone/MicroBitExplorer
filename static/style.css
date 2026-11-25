@@ -929,3 +929,10 @@ html.startlocked body { visibility: hidden; }
 .vid-f.wave.d2 { animation-delay: .35s; opacity: 0; }
 @keyframes vid-wave-out { from { transform: scale(.6); opacity: 1; } to { transform: scale(4); opacity: 0; } }
 @keyframes vid-wave-in { from { transform: scale(4); opacity: 0; } to { transform: scale(.6); opacity: 1; } }
+
+/* kicking a kid out of a live game */
+.lgb-kick { flex: none; padding: 3px 8px; font-size: 12px; opacity: .75; }
+.lgb-kick:hover, .lgb-kick:focus-visible { opacity: 1; border-color: #d1242f; color: #d1242f; }
+.lgb-kicked { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 10px; background: color-mix(in srgb, #d1242f 8%, var(--card)); font-size: 14px; }
+.lgb-kicked span { display: inline-flex; align-items: center; gap: 4px; }
+.lg-kicked { text-align: center; } .lg-kicked-ico { font-size: 64px; }
