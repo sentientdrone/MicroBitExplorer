@@ -24,7 +24,13 @@ const setTeacherToken = (t) => { try { t ? sessionStorage.setItem(teacherKey(), 
 function normServer(s) {
   s = (s || '').trim().replace(/\/+$/, '');
   if (!s) return '';
-  if (!/^https?:\/\//i.test(s)) s = 'http://' + s;
+  if (!/^https?:\/\//i.test(s)) {
+    // Bare IPs / localhost / host:port on the school network are plain http; a real domain
+    // name (e.g. a Cloudflare tunnel) is https, and http would get redirected and break POSTs.
+    const host = s.split('/')[0].split(':')[0];
+    const local = /^(localhost|\d{1,3}(\.\d{1,3}){3}|\[.*\])$/i.test(host) || !host.includes('.') || /\.(local|lan|home|internal)$/i.test(host) || s.includes(':');
+    s = (local ? 'http://' : 'https://') + s;
+  }
   return new URL(s).origin === location.origin ? '' : s;
 }
 

@@ -69,6 +69,7 @@ class Classroom:
         self.lock = threading.Lock()
         self.sessions = {}          # teacher token -> expiry time
         self.student_sessions = {}  # student token -> (student id, expiry time)
+        self.login_fails = []       # times of recent wrong teacher passwords (slows down guessing)
         try:
             self.builds_dir.mkdir(parents=True, exist_ok=True)
             self.writable = True
@@ -138,7 +139,14 @@ class Classroom:
 
     def _teacher_password_ok(self, password):
         c = self._class()
-        return bool(c and password) and hmac.compare_digest(_hash_password(password, c["salt"]), c["hash"])
+        now = time.time()
+        self.login_fails = [t for t in self.login_fails if now - t < 600]
+        if not (c and password) or len(self.login_fails) >= 10:
+            return False
+        ok = hmac.compare_digest(_hash_password(password, c["salt"]), c["hash"])
+        if not ok:
+            self.login_fails.append(now)
+        return ok
 
     def _require_teacher(self, token):
         if not self.is_teacher(token):
@@ -190,8 +198,13 @@ class Classroom:
         c = self._class()
         if not c:
             raise ApiError(409, "this server has no class set up yet")
+        now = time.time()
+        self.login_fails = [t for t in self.login_fails if now - t < 600]
+        if len(self.login_fails) >= 10:  # 10 wrong passwords in 10 minutes: pause teacher logins
+            raise ApiError(429, "too many wrong teacher passwords. Wait a few minutes and try again")
         time.sleep(0.4)  # slows down password guessing
         if not hmac.compare_digest(_hash_password(body.get("password") or "", c["salt"]), c["hash"]):
+            self.login_fails.append(time.time())
             raise ApiError(403, "wrong teacher password")
         return {"token": self._new_session(), "name": c["name"], "code": c["code"]}
 

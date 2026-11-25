@@ -61,6 +61,16 @@ docker compose --profile class up -d --build
 - Without Docker: `MICROBIT_DRIVE_API=0 python3 server.py --host 0.0.0.0 --port 8330 --no-browser`. Data goes in `./data` (or set `MICROBIT_DATA`).
 - Using one shared computer for the whole class? Skip the class server: leave the server address empty in the Explorer and it uses this computer.
 
+### Behind a Cloudflare Tunnel (or another HTTPS reverse proxy)
+
+Point the tunnel at the **class server** (`--profile class`, port 8330):
+
+- On the tunnel's `https://` address, the whole app works, **including the micro:bit**. Web Serial and WebUSB work on any HTTPS page, so students can simply open that address in Chrome with their micro:bit plugged in.
+- In the Explorer, leave the server address empty when you're using the tunnel address itself. From a local copy of the app, type the tunnel's domain (it's assumed to be `https://`).
+- Cloudflare Tunnel keeps the public host name, so nothing else needs configuring. If your proxy rewrites the `Host` header instead, set `MICROBIT_ALLOWED_ORIGINS=https://your.domain`.
+- Requests that arrive through a tunnel or proxy can never use USB-drive flashing, whatever `MICROBIT_DRIVE_API` is set to.
+- After 10 wrong teacher passwords in 10 minutes, teacher logins pause. Kid PINs lock for a minute after 5 wrong tries.
+
 If you get `permission denied ... docker.sock`, either add yourself to the `docker` group (`sudo usermod -aG docker $USER`, then log out and back in) or put `sudo` in front of the docker commands.
 
 The server itself can also be configured with environment variables (`MICROBIT_HOST`, `MICROBIT_PORT`, `MICROBIT_NO_BROWSER=1`, `MICROBIT_MEDIA_ROOTS`) or flags (`--host`, `--port`, `--no-browser`).
@@ -81,7 +91,7 @@ Then unplug and replug the micro:bit. A snap-packaged Chromium also needs `sudo 
 - WebUSB flashing needs DAPLink interface firmware 0249 or newer (shown in the Device card). Flashing through the USB drive works with any version.
 - The server listens only on 127.0.0.1 and refuses cross-site requests.
 - Quiz progress, Bit's accessories, the parent/teacher code and saved blocks are stored in the browser (per computer and browser). The teacher code is stored hashed. It's a simple lock to stop peeking, not strong security.
-- Explorer data (builds, kid accounts, class settings) is stored on the class server as JSON files. The teacher password and kid PINs are stored hashed (PBKDF2). The class server is meant for a trusted school network: it uses plain HTTP, so don't expose it to the internet.
+- Explorer data (builds, kid accounts, class settings) is stored on the class server as JSON files. The teacher password and kid PINs are stored hashed (PBKDF2). On a school network the class server uses plain HTTP. To reach it from the internet, put it behind HTTPS (for example a Cloudflare Tunnel, see above) and use a strong teacher password: the class code and kid PINs are made for convenience, not for strong security.
 
 ## Bundled third-party files
 

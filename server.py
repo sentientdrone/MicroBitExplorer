@@ -17,12 +17,16 @@ Settings can also come from the environment (handy in containers):
   MICROBIT_DATA=./data            (where the class Explorer saves shared builds)
   MICROBIT_DRIVE_API=0            (turn off USB-drive flashing, for a class server
                                    that other computers can reach)
+  MICROBIT_ALLOWED_ORIGINS=https://class.example.org,…
+                                  (extra sites allowed to use the class API, if a
+                                   proxy rewrites the Host header)
 """
 import argparse
 import json
 import os
 import signal
 import webbrowser
+from urllib.parse import urlsplit
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -33,6 +37,9 @@ STATIC = HERE / "static"
 MAX_HEX = 4 * 1024 * 1024  # a v1 hex is ~1.5 MB at most
 MEDIA_ROOTS = [Path(p) for p in os.environ.get("MICROBIT_MEDIA_ROOTS", "/media:/run/media:/mnt").split(":") if p]
 DRIVE_API = os.environ.get("MICROBIT_DRIVE_API", "1") != "0"
+ALLOWED_ORIGINS = {o.strip().rstrip("/").lower() for o in os.environ.get("MICROBIT_ALLOWED_ORIGINS", "").split(",") if o.strip()}
+# Headers that mean the request came through a proxy or tunnel (Cloudflare, nginx, …)
+PROXY_HEADERS = ("Cf-Connecting-Ip", "X-Forwarded-For", "X-Forwarded-Host", "Forwarded", "X-Real-Ip")
 CLASS = Classroom(os.environ.get("MICROBIT_DATA") or HERE / "data")
 
 
@@ -109,10 +116,31 @@ class Handler(SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
     def _same_origin(self):
-        # Refuse cross-site POSTs so other websites can't flash your board.
+        """Is the request from a page served by this same server? (Blocks other sites' forged requests.)
+
+        Works for plain http://localhost:8321 and for https:// behind a tunnel or
+        reverse proxy (Cloudflare Tunnel keeps the public Host; others may send
+        X-Forwarded-Host)."""
         origin = self.headers.get("Origin")
-        host = self.headers.get("Host", "")
-        return origin is None or origin in (f"http://{host}",)
+        if origin is None:
+            return True
+        if origin.rstrip("/").lower() in ALLOWED_ORIGINS:
+            return True
+        try:
+            u = urlsplit(origin)
+        except ValueError:
+            return False
+        if u.scheme not in ("http", "https") or not u.hostname:
+            return False
+        default_port = 443 if u.scheme == "https" else 80
+        want = {u.netloc.lower(), f"{u.hostname.lower()}:{u.port or default_port}"}
+        if not u.port:
+            want.add(u.hostname.lower())
+        hosts = {h.strip().lower() for h in (self.headers.get("Host"), self.headers.get("X-Forwarded-Host")) if h}
+        return bool(hosts & want)
+
+    def _via_proxy(self):
+        return any(self.headers.get(h) for h in PROXY_HEADERS)
 
     # ------------------------------------------------ class Explorer API
     def _class_api(self, method):
@@ -162,7 +190,8 @@ class Handler(SimpleHTTPRequestHandler):
         if self.path.startswith("/api/class"):
             return self._class_api("GET")
         if self.path == "/api/drive":
-            return self._json(200, {"drives": find_drives() if DRIVE_API else [], "disabled": not DRIVE_API})
+            on = DRIVE_API and not self._via_proxy()
+            return self._json(200, {"drives": find_drives() if on else [], "disabled": not on})
         return super().do_GET()
 
     def do_POST(self):
@@ -172,6 +201,9 @@ class Handler(SimpleHTTPRequestHandler):
             return self._json(404, {"error": "not found"})
         if not DRIVE_API:
             return self._json(403, {"error": "USB-drive flashing is turned off on this server"})
+        if self._via_proxy():
+            # Through a tunnel/proxy this could come from anywhere on the internet.
+            return self._json(403, {"error": "USB-drive flashing only works when you use the app on this computer directly"})
         if not self._same_origin():
             return self._json(403, {"error": "cross-origin request refused"})
         length = int(self.headers.get("Content-Length") or 0)
