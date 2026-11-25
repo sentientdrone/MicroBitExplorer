@@ -90,6 +90,107 @@ const VIDEOS = [
         board: [[600, { shake: true }], [900, { num: '5' }]], end: true },
     ],
   },
+  {
+    id: 'variables', icon: '🔢', title: 'Variables: make a counter', mins: 2, kind: 'python',
+    blurb: 'Store a number in a variable and count button presses.',
+    scenes: [
+      { say: 'A variable is a box with a name, that remembers a value. Let\'s make a counter that counts how many times you press button A.',
+        code: ['from microbit import *', '', 'count = 0', 'display.show(count)'], hl: [2, 3], board: [[1200, { num: '0' }]] },
+      { say: 'count equals zero makes a box called count and puts zero inside. display dot show count shows what\'s in the box.',
+        code: ['from microbit import *', '', 'count = 0', 'display.show(count)'], hl: [2], board: [[0, { num: '0' }]] },
+      { say: 'Inside the loop: if button A was pressed, count equals count plus one. That takes the old number, adds one, and puts it back in the box.',
+        code: ['from microbit import *', '', 'count = 0', 'display.show(count)', 'while True:', '    if button_a.was_pressed():', '        count = count + 1', '        display.show(count)'], hl: [5, 6, 7],
+        board: [[0, { num: '0' }], [2200, { press: 'A' }], [2300, { num: '1' }], [3800, { press: 'A' }], [3900, { num: '2' }], [5400, { press: 'A' }], [5500, { num: '3' }]] },
+      { say: 'Why "was pressed" and not "is pressed"? was pressed remembers a press even if the program was busy, and counts each press only once.',
+        code: ['from microbit import *', '', 'count = 0', 'display.show(count)', 'while True:', '    if button_a.was_pressed():', '        count = count + 1', '        display.show(count)'], hl: [5],
+        board: [[0, { num: '3' }], [1500, { press: 'A' }], [1600, { num: '4' }]] },
+      { say: 'Let\'s use button B to start again. If B was pressed, count equals zero puts zero back in the box.',
+        code: ['from microbit import *', '', 'count = 0', 'display.show(count)', 'while True:', '    if button_a.was_pressed():', '        count = count + 1', '        display.show(count)', '    if button_b.was_pressed():', '        count = 0', '        display.show(count)'], hl: [8, 9, 10],
+        board: [[0, { num: '4' }], [2500, { press: 'B' }], [2600, { num: '0' }]] },
+      { say: 'Try it yourself! Count your jumps, your claps, or how many times a friend smiles.',
+        code: ['from microbit import *', '', 'count = 0', 'display.show(count)', 'while True:', '    if button_a.was_pressed():', '        count = count + 1', '        display.show(count)', '    if button_b.was_pressed():', '        count = 0', '        display.show(count)'],
+        board: [[600, { press: 'A' }], [700, { num: '1' }]], end: true },
+    ],
+  },
+  {
+    id: 'pictures', icon: '🖼️', title: 'Draw your own pictures', mins: 2, kind: 'python',
+    blurb: 'Design your own LED pictures, light single LEDs and make a flip-book animation.',
+    scenes: [
+      { say: 'The built-in pictures are fun, but you can draw your own! Each LED gets a number: zero is off, and nine is the brightest.',
+        code: ['from microbit import *', '', 'boat = Image("05050:05050:05050:99999:09990")', 'display.show(boat)'], hl: [2, 3],
+        board: [[1500, { pix: '05050:05050:05050:99999:09990' }]] },
+      { say: 'There are five rows of five numbers, split up by colons. The first five numbers are the top row. The fives are half bright, like the sails of this boat.',
+        code: ['from microbit import *', '', 'boat = Image("05050:05050:05050:99999:09990")', 'display.show(boat)'], hl: [2],
+        board: [[0, { pix: '05050:05050:05050:99999:09990' }], [2500, { pix: '99999:00000:00000:00000:00000' }], [4500, { pix: '05050:05050:05050:99999:09990' }]] },
+      { say: 'display dot set pixel lights just one LED. x goes across and y goes down, and both start counting at zero. So 2, 2 is the middle.',
+        code: ['from microbit import *', '', 'display.clear()', 'display.set_pixel(2, 2, 9)', 'display.set_pixel(0, 0, 5)'], hl: [3, 4],
+        board: [[0, { clear: true }], [1800, { pix: '00000:00000:00900:00000:00000' }], [3200, { pix: '50000:00000:00900:00000:00000' }]] },
+      { say: 'Put some pictures in a list, and display dot show plays them one after another, like a flip-book. loop equals True keeps it going.',
+        code: ['from microbit import *', '', 'frames = [Image("00000:00000:00900:00000:00000"),', '          Image("00000:09990:09090:09990:00000"),', '          Image("99999:90009:90009:90009:99999")]', 'display.show(frames, delay=300, loop=True)'], hl: [2, 3, 4, 5],
+        board: [[1500, { anim: ['00000:00000:00900:00000:00000', '00000:09990:09090:09990:00000', '99999:90009:90009:90009:99999'], ms: 300 }]] },
+      { say: 'Your turn! Draw a cat, a rocket, or your initials. Grab some squared paper and plan it first.',
+        code: ['from microbit import *', '', 'boat = Image("05050:05050:05050:99999:09990")', 'display.show(boat)', 'sleep(1500)', 'frames = [Image("00000:00000:00900:00000:00000"),', '          Image("00000:09990:09090:09990:00000"),', '          Image("99999:90009:90009:90009:99999")]', 'display.show(frames, delay=300, loop=True)'],
+        board: [[0, { pix: '05050:05050:05050:99999:09990' }], [1500, { anim: ['00000:00000:00900:00000:00000', '00000:09990:09090:09990:00000', '99999:90009:90009:90009:99999'], ms: 300 }]], end: true },
+    ],
+  },
+  {
+    id: 'music', icon: '🎵', title: 'Make music', mins: 2, kind: 'python',
+    blurb: 'Play built-in tunes, write your own melody and make beeps with any pitch.',
+    scenes: [
+      { say: 'The micro:bit version one has no speaker of its own. Clip headphones or a buzzer to pin zero and GND. The simulator has a speaker built in!',
+        code: ['from microbit import *', 'import music'], hl: [1], board: [[1500, { pins: ['0', 'GND'], ms: 5000 }]] },
+      { say: 'import music brings in the music tools. music dot play plays a tune. BA DING is one of the built-in ones.',
+        code: ['from microbit import *', 'import music', '', 'music.play(music.BA_DING)'], hl: [3], board: [[1600, { tones: [[988, 130], [1319, 450]] }]] },
+      { say: 'You can write your own tune as a list of notes. C4 means the note C, in octave 4, and the number after the colon says how long it lasts.',
+        code: ['from microbit import *', 'import music', '', 'music.play(["C4:4", "E4:4", "G4:4", "C5:8"])'], hl: [3],
+        board: [[2000, { tones: [[262, 400], [330, 400], [392, 400], [523, 800]] }]] },
+      { say: 'music dot pitch plays any sound you like. The first number is how many times the sound wiggles every second. Bigger numbers sound higher!',
+        code: ['from microbit import *', 'import music', '', 'music.pitch(440, 500)', 'music.pitch(880, 500)'], hl: [3, 4],
+        board: [[1500, { tones: [[440, 500]] }], [2300, { tones: [[880, 500]] }]] },
+      { say: 'Try it yourself! Button A plays BA DING, and button B beeps. Can you make a doorbell, or a happy birthday sound?',
+        code: ['from microbit import *', 'import music', '', 'music.play(["C4:4", "E4:4", "G4:4", "C5:8"])', 'while True:', '    if button_a.was_pressed():', '        music.play(music.BA_DING)', '    if button_b.was_pressed():', '        music.pitch(880, 300)'],
+        board: [[1000, { press: 'A' }], [1100, { tones: [[988, 130], [1319, 450]] }]], end: true },
+    ],
+  },
+  {
+    id: 'radio', icon: '📻', title: 'Radio messages', mins: 2, kind: 'python',
+    blurb: 'Send messages between micro:bits: switch the radio on, pick a group, send and receive.',
+    scenes: [
+      { say: 'micro:bits can talk to each other by radio, with no wires! Every micro:bit in the same group hears the message, like walkie-talkies.',
+        code: [], board: [[800, { send: true }], [2500, { recv: true }]] },
+      { say: 'import radio, then radio dot on switches the radio on. radio dot config group equals 7 picks a group. Your friend must pick the same number, from 0 to 255.',
+        code: ['from microbit import *', 'import radio', '', 'radio.on()', 'radio.config(group=7)'], hl: [1, 3, 4] },
+      { say: 'To send: if button A was pressed, radio dot send "hi". The message flies out to every micro:bit in group 7.',
+        code: ['from microbit import *', 'import radio', '', 'radio.on()', 'radio.config(group=7)', 'while True:', '    if button_a.was_pressed():', '        radio.send("hi")'], hl: [6, 7],
+        board: [[2000, { press: 'A' }], [2100, { send: true }], [4000, { press: 'A' }], [4100, { send: true }]] },
+      { say: 'To receive: radio dot receive gives you the next message, or None if nothing has arrived. If the message is "hi", show a happy face!',
+        code: ['from microbit import *', 'import radio', '', 'radio.on()', 'radio.config(group=7)', 'while True:', '    if button_a.was_pressed():', '        radio.send("hi")', '    msg = radio.receive()', '    if msg == "hi":', '        display.show(Image.HAPPY)'], hl: [8, 9, 10],
+        board: [[0, { clear: true }], [2500, { recv: true }], [3200, { img: 'HAPPY' }]] },
+      { say: 'Try it yourself! Put the same program on two micro:bits, or use the radio buttons in the simulator, and send each other smiles.',
+        code: ['from microbit import *', 'import radio', '', 'radio.on()', 'radio.config(group=7)', 'while True:', '    if button_a.was_pressed():', '        radio.send("hi")', '    msg = radio.receive()', '    if msg == "hi":', '        display.show(Image.HAPPY)', '        sleep(1000)', '        display.clear()'],
+        board: [[600, { press: 'A' }], [700, { send: true }], [2200, { recv: true }], [2800, { img: 'HAPPY' }]], end: true },
+    ],
+  },
+  {
+    id: 'touch', icon: '👆', title: 'Touch pins', mins: 2, kind: 'python',
+    blurb: 'Use pins 0, 1 and 2 as touch buttons, and make a fruit piano.',
+    scenes: [
+      { say: 'The big gold pins 0, 1 and 2 can feel your touch! Hold GND with one hand, and touch a pin with your other hand.',
+        code: [], board: [[1500, { touch: '0', ms: 3000 }]] },
+      { say: 'A tiny bit of electricity goes through your body to GND, and the micro:bit notices. pin zero dot is touched gives True or False.',
+        code: ['from microbit import *', '', 'while True:', '    if pin0.is_touched():', '        display.show(Image.HAPPY)', '    else:', '        display.show(Image.SAD)'], hl: [3, 4, 5, 6],
+        board: [[0, { img: 'SAD' }], [2500, { touch: '0', ms: 2000 }], [2600, { img: 'HAPPY' }], [4600, { img: 'SAD' }]] },
+      { say: 'Use elif to check more pins. Touch pin one to see a heart. If nothing is touched, display dot clear turns all the LEDs off.',
+        code: ['from microbit import *', '', 'while True:', '    if pin0.is_touched():', '        display.show(Image.HAPPY)', '    elif pin1.is_touched():', '        display.show(Image.HEART)', '    else:', '        display.clear()'], hl: [5, 6, 7, 8],
+        board: [[0, { clear: true }], [1800, { touch: '1', ms: 1800 }], [1900, { img: 'HEART' }], [3700, { clear: true }]] },
+      { say: 'Here\'s a fun idea: clip each pin to a banana and play music when you touch them. A fruit piano! Bananas conduct electricity, just like you.',
+        code: ['from microbit import *', 'import music', '', 'while True:', '    if pin0.is_touched():', '        music.pitch(262, 200)', '    elif pin1.is_touched():', '        music.pitch(330, 200)', '    elif pin2.is_touched():', '        music.pitch(392, 200)'], hl: [4, 5, 6, 7, 8, 9],
+        board: [[1500, { touch: '0', ms: 600 }], [1550, { tones: [[262, 300]] }], [2300, { touch: '1', ms: 600 }], [2350, { tones: [[330, 300]] }], [3100, { touch: '2', ms: 600 }], [3150, { tones: [[392, 300]] }]] },
+      { say: 'Try it yourself! On the simulator, click a gold pin to touch it.',
+        code: ['from microbit import *', '', 'while True:', '    if pin0.is_touched():', '        display.show(Image.HAPPY)', '    elif pin1.is_touched():', '        display.show(Image.HEART)', '    else:', '        display.clear()'],
+        board: [[600, { touch: '0', ms: 1500 }], [700, { img: 'HAPPY' }]], end: true },
+    ],
+  },
 ];
 
 // What "Try it yourself" loads
@@ -102,6 +203,54 @@ const VID_BLOCKS_PROGRAM = () => ex([
     { type: 'mb_show_icon', fields: { ICON: 'HEART_SMALL' } },
     { type: 'mb_pause', inputs: { MS: { shadow: { type: 'math_number', fields: { NUM: 500 } } } } }]) } } },
 ]);
+
+/* ----- voices: a fun style (pitch + speed) on top of any speech voice installed on the computer ----- */
+const VID_STYLES = [
+  { id: 'bit', name: '🤖 Bit (cheerful)', pitch: 1.15, rate: 0.98 },
+  { id: 'teacher', name: '🧑‍🏫 Teacher (calm)', pitch: 1.0, rate: 0.9 },
+  { id: 'slow', name: '🐢 Slow and clear', pitch: 1.0, rate: 0.72 },
+  { id: 'speedy', name: '⚡ Speedy', pitch: 1.2, rate: 1.35 },
+  { id: 'robot', name: '🔩 Robot', pitch: 0.45, rate: 0.85 },
+  { id: 'tiny', name: '🐭 Tiny mouse', pitch: 1.9, rate: 1.1 },
+  { id: 'giant', name: '🐻 Giant bear', pitch: 0.15, rate: 0.8 },
+];
+const VID_VOICE_KEY = 'microbit-video-voice';
+function vidVoicePrefs() { try { return { style: 'bit', voice: '', ...JSON.parse(localStorage.getItem(VID_VOICE_KEY) || '{}') }; } catch { return { style: 'bit', voice: '' }; } }
+function vidSaveVoicePrefs(p) { try { localStorage.setItem(VID_VOICE_KEY, JSON.stringify(p)); } catch {} }
+const vidVoices = () => { try { return speechSynthesis.getVoices(); } catch { return []; } };
+function vidUtter(text) {
+  const prefs = vidVoicePrefs(), voices = vidVoices();
+  const style = VID_STYLES.find((st) => st.id === prefs.style) || VID_STYLES[0];
+  const u = new SpeechSynthesisUtterance(text);
+  u.voice = (prefs.voice && voices.find((vo) => vo.voiceURI === prefs.voice))
+    || voices.find((vo) => /^en/i.test(vo.lang) && /female|samantha|google us|aria|jenny|zira/i.test(vo.name))
+    || voices.find((vo) => /^en/i.test(vo.lang)) || null;
+  if (u.voice) u.lang = u.voice.lang;
+  u.pitch = style.pitch; u.rate = style.rate;
+  return u;
+}
+function vidVoicePanel() {
+  const box = $('vid-vpanel'); if (!box) return;
+  const prefs = vidVoicePrefs(), voices = vidVoices();
+  const en = voices.filter((vo) => /^en/i.test(vo.lang)), other = voices.filter((vo) => !/^en/i.test(vo.lang));
+  const opt = (vo) => `<option value="${esc(vo.voiceURI)}" ${vo.voiceURI === prefs.voice ? 'selected' : ''}>${esc(vo.name)} (${esc(vo.lang)})</option>`;
+  box.innerHTML = `<label>🎭 Style <select id="vid-style">${VID_STYLES.map((st) => `<option value="${st.id}" ${st.id === prefs.style ? 'selected' : ''}>${st.name}</option>`).join('')}</select></label>
+    <label>🗣️ Voice <select id="vid-vsel"><option value="">✨ Automatic</option>${en.length ? `<optgroup label="English">${en.map(opt).join('')}</optgroup>` : ''}${other.length ? `<optgroup label="Other languages">${other.map(opt).join('')}</optgroup>` : ''}</select></label>
+    <button id="vid-vtest">🔈 Test</button>
+    ${voices.length ? `<span class="muted">${voices.length} voice${voices.length === 1 ? '' : 's'} on this computer</span>` : '<span class="muted">This browser has no speech voices installed, so lessons show captions only. Windows, Mac, ChromeOS, Android and iPad come with voices.</span>'}`;
+  const save = () => vidSaveVoicePrefs({ style: $('vid-style').value, voice: $('vid-vsel').value });
+  $('vid-style').onchange = () => { save(); vidTestVoice(); };
+  $('vid-vsel').onchange = () => { save(); vidTestVoice(); };
+  $('vid-vtest').onclick = vidTestVoice;
+}
+function vidTestVoice() {
+  try {
+    speechSynthesis.cancel();
+    const st = VID_STYLES.find((x) => x.id === vidVoicePrefs().style) || VID_STYLES[0];
+    speechSynthesis.speak(vidUtter(`Hi! I'm Bit, with my ${st.name.replace(/^\S+\s/, '').replace(/\(.*\)/, '')} voice.`));
+  } catch {}
+}
+try { speechSynthesis.addEventListener('voiceschanged', () => { if ($('vid-vpanel') && !$('vid-vpanel').hidden) vidVoicePanel(); }); } catch {}
 
 const vidSeen = () => { try { return JSON.parse(localStorage.getItem(VID_SEEN_KEY) || '[]'); } catch { return []; } };
 const vidMarkSeen = (id) => { try { const s = vidSeen(); if (!s.includes(id)) localStorage.setItem(VID_SEEN_KEY, JSON.stringify([...s, id])); } catch {} };
@@ -137,7 +286,9 @@ function playVideo(n) {
         <div class="vid-left"><div class="vid-board" id="vid-board">
           <div class="vid-leds" id="vid-leds">${'<i></i>'.repeat(25)}</div>
           <span class="vid-btn a" id="vid-ba">A</span><span class="vid-btn b" id="vid-bb">B</span>
-          <span class="vid-run" id="vid-run" hidden>⚡ USB</span></div>
+          <span class="vid-run" id="vid-run" hidden>⚡ USB</span>
+          <div class="vid-pins">${['0', '1', '2', '3V', 'GND'].map((p) => `<span data-pin="${p}">${p}</span>`).join('')}</div>
+          <div class="vid-fx" id="vid-fx"></div></div>
           <div class="vid-bit">${typeof botSVG === 'function' ? botSVG() : '🤖'}</div></div>
         <div class="vid-right"><div class="vid-code ${v.kind === 'blocks' ? 'blocks' : ''}" id="vid-code"></div></div>
         <div class="vid-cc" id="vid-cc"></div>
@@ -147,8 +298,9 @@ function playVideo(n) {
       <div class="vid-ctrl">
         <button id="vid-prev" aria-label="Previous scene">⏮</button><button id="vid-play" class="primary" aria-label="Play">▶ Play</button><button id="vid-next" aria-label="Next scene">⏭</button>
         <span class="vid-count" id="vid-count"></span>
-        <button id="vid-voice" aria-pressed="true" title="Bit's voice">🔊 Voice</button><button id="vid-ccbtn" aria-pressed="true" title="Captions">💬 Captions</button>
+        <button id="vid-voice" aria-pressed="true" title="Bit's voice">🔊 Voice</button><button id="vid-vcfg" aria-expanded="false" title="Choose a voice">🗣️ Change voice</button><button id="vid-ccbtn" aria-pressed="true" title="Captions">💬 Captions</button>
       </div>
+      <div class="vid-vpanel" id="vid-vpanel" hidden></div>
     </div>
     <div class="vid-try" id="vid-try" hidden><b>🎉 Lesson done!</b> <span>Now try it yourself:</span>
       <button class="primary" id="vid-tryit">${v.kind === 'blocks' ? '🧩 Open these blocks' : '🐍 Load this code and run it'}</button>
@@ -160,6 +312,7 @@ function playVideo(n) {
   $('vid-bar').querySelectorAll('[data-s]').forEach((b) => (b.onclick = () => vidGo(+b.dataset.s, VP.playing)));
   $('vid-voice').onclick = () => { VP.voice = !VP.voice; vidButtons(); if (!VP.voice) try { speechSynthesis.cancel(); } catch {} if (VP.playing) vidGo(VP.i, true); };
   $('vid-ccbtn').onclick = () => { VP.cc = !VP.cc; vidButtons(); };
+  $('vid-vcfg').onclick = () => { const p = $('vid-vpanel'); p.hidden = !p.hidden; $('vid-vcfg').setAttribute('aria-expanded', !p.hidden); if (!p.hidden) vidVoicePanel(); };
   $('vid-tryit').onclick = () => vidTryIt(v);
   $('vid-nextvid')?.addEventListener('click', () => playVideo(VP.n + 1));
   vidButtons();
@@ -212,10 +365,7 @@ function vidScene(i, play) {
   if (VP.voice && 'speechSynthesis' in window) {
     try {
       speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(s.say);
-      const voices = speechSynthesis.getVoices();
-      u.voice = voices.find((vo) => /^en/i.test(vo.lang) && /female|samantha|google us|aria|jenny/i.test(vo.name)) || voices.find((vo) => /^en/i.test(vo.lang)) || null;
-      u.rate = 0.98; u.pitch = 1.15;
+      const u = vidUtter(s.say);
       let done = false;
       const fin = () => { if (!done) { done = true; after(); } };
       u.onend = fin; u.onerror = fin;
@@ -257,8 +407,35 @@ function vidAct(a) {
     el.classList.add('down'); VP.timers.push(setTimeout(() => el?.classList.remove('down'), a.ms || 350));
   }
   if (a.beat) { let big = true; vidFrame(VID_IMG.HEART); clearInterval(VP.beat); VP.beat = setInterval(() => { big = !big; vidFrame(VID_IMG[big ? 'HEART' : 'HEART_SMALL']); }, 500); }
+  if (a.pix) { clearInterval(VP.beat); clearInterval(VP.scrolling); vidFrame(a.pix); }
+  if (a.anim) {   // a flip-book of pictures
+    clearInterval(VP.beat); clearInterval(VP.scrolling);
+    let k = 0; vidFrame(a.anim[0]);
+    VP.beat = setInterval(() => { k = (k + 1) % a.anim.length; vidFrame(a.anim[k]); }, a.ms || 300);
+  }
+  if (a.pins || a.touch) {   // light up pins (a finger on a touch pin)
+    const list = a.pins || [a.touch, 'GND'];
+    list.forEach((p) => document.querySelector(`#vid-board [data-pin="${p}"]`)?.classList.add('lit'));
+    if (a.touch) vidFx('👆', 'touch');
+    VP.timers.push(setTimeout(() => list.forEach((p) => document.querySelector(`#vid-board [data-pin="${p}"]`)?.classList.remove('lit')), a.ms || 2500));
+  }
+  if (a.tones) {   // really play the notes, with ♪ floating up
+    let t = 0;
+    a.tones.forEach(([f, ms]) => {
+      VP.timers.push(setTimeout(() => { if (typeof bwTone === 'function') bwTone(f, ms * 0.9, 'square'); vidFx('♪', 'note'); }, t));
+      t += ms;
+    });
+  }
+  if (a.send) { vidFx('', 'wave out'); vidFx('', 'wave out d2'); }
+  if (a.recv) { vidFx('', 'wave in'); vidFx('', 'wave in d2'); }
   if (a.tilt !== undefined) $('vid-board').style.transform = `rotate(${a.tilt}deg)`;
   if (a.shake) { const b = $('vid-board'); b.classList.remove('shake'); void b.offsetWidth; b.classList.add('shake'); }
+}
+function vidFx(text, cls) {   // a little effect that floats off the board, then disappears
+  const fx = $('vid-fx'); if (!fx) return;
+  const el = document.createElement('span'); el.className = 'vid-f ' + cls; el.textContent = text;
+  if (cls === 'note') el.style.left = (30 + Math.random() * 40) + '%';
+  fx.appendChild(el); setTimeout(() => el.remove(), 1600);
 }
 function vidBoardStill(s) {   // paused: show how the board ends up in this scene
   const acts = (s.board || []).map(([, a]) => a);
@@ -266,6 +443,8 @@ function vidBoardStill(s) {   // paused: show how the board ends up in this scen
   for (const a of acts) {
     if (a.img) vidFrame(VID_IMG[a.img]);
     if (a.beat) vidFrame(VID_IMG.HEART);
+    if (a.pix) vidFrame(a.pix);
+    if (a.anim) vidFrame(a.anim[a.anim.length - 1]);
     if (a.num) vidFrame(glyph(a.num).map((r) => r.replace(/#/g, '9').replace(/\./g, '0')).join(':'));
     if (a.scroll) vidFrame(glyph(a.scroll[0]).map((r) => r.replace(/#/g, '9').replace(/\./g, '0')).join(':'));
   }
@@ -275,7 +454,7 @@ function vidBoardStill(s) {   // paused: show how the board ends up in this scen
 function vidHighlight(line) {   // a tiny Python colourer
   return esc(line)
     .replace(/(&quot;[^&]*?&quot;|"[^"]*")/g, '<span class="py-str">$1</span>')
-    .replace(/\b(from|import|while|if|elif|else|True|False)\b/g, '<span class="py-kw">$1</span>')
+    .replace(/\b(from|import|while|if|elif|else|True|False|None|for|in|def|return)\b/g, '<span class="py-kw">$1</span>')
     .replace(/\b(\d+)\b/g, '<span class="py-num">$1</span>');
 }
 function vidDrawCode(lines, prevLines, hl, bad, animate) {
