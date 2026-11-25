@@ -419,6 +419,14 @@ class Classroom:
         self.student_sessions[token] = (student_id, time.time() + STUDENT_SESSION_SECONDS)
         return {"id": student_id, "name": st["name"], "studentToken": token}
 
+    def teacher_session_for(self, student_id, token):
+        """Teacher unlocks a kid's locked screen: a fresh session for that kid."""
+        self._require_teacher(token)
+        st = self._student(student_id)
+        t = secrets.token_urlsafe(24)
+        self.student_sessions[t] = (student_id, time.time() + STUDENT_SESSION_SECONDS)
+        return {"id": student_id, "name": st["name"], "studentToken": t}
+
     def lock_account(self, student_token):
         self.student_sessions.pop(student_token or "", None)
         return {"ok": True}
@@ -665,6 +673,8 @@ class Classroom:
                 return self.create_student(body, code, token)
             if method == "POST" and len(parts) == 3 and parts[2] == "unlock":
                 return self.unlock(parts[1], body, code)
+            if method == "POST" and len(parts) == 3 and parts[2] == "session":
+                return self.teacher_session_for(parts[1], token)
             if method == "PATCH" and len(parts) == 2:
                 return self.update_student(parts[1], token, body)
             if method == "DELETE" and len(parts) == 2:

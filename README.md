@@ -21,6 +21,7 @@ Also:
 - 🔍 **Search** across every lesson, part, Tour step and quiz question. Press `/` to jump to it.
 - 👩‍🏫 **Parent / teacher code**. A grown-up creates their own code, which unlocks quiz answers in search and opens an answer key.
 - 🔑 **Kid accounts** (Explorer). Each kid unlocks their account with a 4–6 digit PIN on a number pad, and locks it when done (it also auto-locks after 30 minutes idle, or when the browser closes). **Making a new account needs the teacher password.** 5 wrong PINs block the account for a minute. The teacher can reset PINs, rename or delete accounts.
+- 🔒 **Lock screen.** While a kid is logged in, **🔒 Lock screen** (top bar) covers the whole app until that kid types their PIN, or the teacher types the class password (which doesn't log the teacher in on that computer). It also locks by itself after 5 idle minutes, and stays locked after a page reload. **Not you?** logs the kid out so someone else can use the computer. Locking also ends the kid's login on the class server, so getting past the screen without the PIN just leaves you logged out. After 30 idle minutes the kid is logged out completely.
 
 ## Start
 

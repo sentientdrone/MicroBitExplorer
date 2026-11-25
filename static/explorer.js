@@ -5,7 +5,9 @@
 
 /* ------------------------------------------------------------ state */
 const EX_KEY = 'microbit-class', EX_CLAPS = 'microbit-class-claps';
-const AUTO_LOCK_MINUTES = 30;
+const AUTO_LOCK_MINUTES = 30;        // idle this long: log the kid out completely
+const SCREEN_LOCK_MINUTES = 5;       // idle this long: show the lock screen (PIN to get back in)
+const SCREEN_LOCK_KEY = 'microbit-screen-locked';
 const exLoad = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
 const exSave = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
 let CL = exLoad(EX_KEY, null);                 // { server, code, className }: which class this computer joined
@@ -13,7 +15,13 @@ let CLAPPED = new Set(exLoad(EX_CLAPS, []));   // "<account id>:<build id>" pair
 
 // The unlocked kid account lives in sessionStorage: closing the browser locks it.
 const meKey = () => 'microbit-class-me:' + (CL?.server || location.origin);
-function getMe() { try { return JSON.parse(sessionStorage.getItem(meKey())); } catch { return null; } }
+function getMe() {
+  let me = null;
+  try { me = JSON.parse(sessionStorage.getItem(meKey())); } catch {}
+  // No login token and no lock screen: the lock was bypassed, so treat it as logged out.
+  if (me && !me.token && !screenLocked()) { try { sessionStorage.removeItem(meKey()); } catch {} return null; }
+  return me;
+}
 function setMe(me) {
   try { me ? sessionStorage.setItem(meKey(), JSON.stringify(me)) : sessionStorage.removeItem(meKey()); } catch {}
   updateAccountBadge();
@@ -38,11 +46,11 @@ function normServer(s) {
   return new URL(s).origin === location.origin ? '' : s;
 }
 
-async function exApi(path, { method = 'GET', body, server = CL?.server, code = CL?.code, owner } = {}) {
+async function exApi(path, { method = 'GET', body, server = CL?.server, code = CL?.code, owner, teacherToken } = {}) {
   const headers = {};
   if (body) headers['Content-Type'] = 'application/json';
   if (code) headers['X-Class-Code'] = code;
-  const tt = getTeacherToken(); if (tt) headers['X-Teacher-Token'] = tt;
+  const tt = teacherToken || getTeacherToken(); if (tt) headers['X-Teacher-Token'] = tt;
   if (owner) headers['X-Owner-Token'] = owner;
   const me = getMe(); if (me?.token) headers['X-Student-Token'] = me.token;
   let r;
@@ -195,11 +203,14 @@ function showClassCode(name, code, fresh) {
 
 /* ------------------------------------------------------------ kid accounts */
 function updateAccountBadge() {
-  const el = $('ex-account'); if (!el) return;
   const me = getMe();
+  const hb = $('btn-lockscreen');  // top bar, visible on every tab while a kid is logged in
+  if (hb) { hb.hidden = !me; hb.title = me ? `Lock the screen so only ${me.name} (or the teacher) can get back in` : ''; }
+  const el = $('ex-account'); if (!el) return;
   el.innerHTML = me
-    ? `<span class="ex-me">🔓 <b>${esc(me.name)}</b></span> <button class="small" id="ex-lock">🔒 Lock</button>`
+    ? `<span class="ex-me">🔓 <b>${esc(me.name)}</b></span> <button class="small" id="ex-screenlock">🔒 Lock screen</button> <button class="small" id="ex-lock">🚪 Log out</button>`
     : `<button id="ex-unlock" class="ex-kid-login">🧒 Kid login</button>`;
+  $('ex-screenlock')?.addEventListener('click', lockScreen);
   $('ex-lock')?.addEventListener('click', () => { lockAccount(); drawGrid(); });
   $('ex-unlock')?.addEventListener('click', kidLogin);
 }
@@ -307,7 +318,9 @@ let lastTouch = Date.now();
 function touch() { lastTouch = Date.now(); }
 ['pointerdown', 'keydown'].forEach((ev) => document.addEventListener(ev, touch, true));
 setInterval(() => {
-  if (getMe() && Date.now() - lastTouch > AUTO_LOCK_MINUTES * 60000) { lockAccount(); if (!$('view-explorer').hidden) drawGrid(); }
+  const idle = Date.now() - lastTouch;
+  if (getMe() && idle > AUTO_LOCK_MINUTES * 60000) { unlockScreen(); lockAccount(); if (!$('view-explorer').hidden) drawGrid(); return; }
+  if (getMe() && idle > SCREEN_LOCK_MINUTES * 60000 && !screenLocked()) lockScreen();
 }, 30000);
 
 async function manageAccounts() {
@@ -598,3 +611,110 @@ $('btn-share-py').onclick = () => openShare('python');
 if (!$('view-explorer').hidden) exShow();
 // Still unlocked from earlier in this browser session (e.g. after a page reload): load that kid's Bit.
 if (getMe()) onAccountChange(getMe());
+
+
+/* ------------------------------------------------------------ lock screen */
+// Covers the whole app while a kid steps away. Only that kid's PIN, or the teacher's class
+// password, gets back in. "Not you?" logs the kid out so someone else can use the computer.
+function screenLocked() { try { return sessionStorage.getItem(SCREEN_LOCK_KEY) === '1'; } catch { return false; } }
+
+function lockScreen() {
+  const me = getMe(); if (!me) return;
+  // End the kid's login on the class server too, so getting past the screen without the PIN
+  // (e.g. with developer tools) just leaves you logged out. Unlocking starts a fresh login.
+  if (me.token) exApi('/lock', { method: 'POST', body: {} }).catch(() => {});  // headers (with the token) are built now
+  try {
+    sessionStorage.setItem(meKey(), JSON.stringify({ id: me.id, name: me.name, token: null }));
+    sessionStorage.setItem(SCREEN_LOCK_KEY, '1');
+  } catch {}
+  showLockScreen();
+}
+
+function unlockScreen() {
+  try { sessionStorage.removeItem(SCREEN_LOCK_KEY); } catch {}
+  $('lockscreen')?.remove();
+  document.querySelectorAll('body > [inert]').forEach((el) => el.removeAttribute('inert'));
+  touch();
+}
+
+function showLockScreen() {
+  const me = getMe(); if (!me) { unlockScreen(); return; }
+  $('lockscreen')?.remove();
+  try { exClose(); } catch {}
+  if (typeof closeTour === 'function') closeTour();
+  // nothing behind the lock screen can be clicked, focused or typed into
+  [...document.body.children].forEach((el) => { if (el.tagName !== 'SCRIPT') el.setAttribute('inert', ''); });
+  const ls = document.createElement('div');
+  ls.id = 'lockscreen'; ls.className = 'lockscreen'; ls.setAttribute('role', 'dialog'); ls.setAttribute('aria-modal', 'true');
+  ls.setAttribute('aria-label', `Locked: ${me.name}'s account`);
+  document.body.appendChild(ls);
+  let pin = '';
+  const render = (mode = 'pin', err = '') => {
+    ls.innerHTML = mode === 'pin' ? `
+      <div class="ls-card">
+        <div class="ls-bot">${typeof botSVG === 'function' ? botSVG() : '🤖'}</div>
+        <h1>🔒 ${esc(me.name)}'s screen is locked</h1>
+        <p class="ls-sub">Type your PIN to unlock</p>
+        <div class="ex-pin-dots" id="ls-dots">${Array.from({ length: Math.max(4, pin.length) }, (_, i) => `<i class="${i < pin.length ? 'on' : ''}"></i>`).join('')}</div>
+        <div class="ex-pad">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => `<button data-n="${n}">${n}</button>`).join('')}
+          <button data-n="back" aria-label="Delete">⌫</button><button data-n="0">0</button><button data-n="ok" class="primary" aria-label="Unlock">✓</button></div>
+        <p class="tdlg-err ls-err" id="ls-err">${esc(err)}</p>
+        <div class="ls-links"><button id="ls-notme">🙋 Not ${esc(me.name)}? Switch kid</button><button id="ls-teacher">👩‍🏫 Teacher unlock</button></div>
+      </div>` : `
+      <div class="ls-card">
+        <h1>👩‍🏫 Teacher unlock</h1>
+        <p class="ls-sub">Type the class teacher password to unlock ${esc(me.name)}'s screen.</p>
+        <form id="ls-tform" class="tdlg-form ls-tform"><input type="password" id="ls-tpw" autocomplete="off" placeholder="Teacher password" aria-label="Teacher password">
+          <p class="tdlg-err" id="ls-err">${esc(err)}</p>
+          <div class="row"><button class="primary">Unlock</button><button type="button" id="ls-back">← Back</button></div></form>
+      </div>`;
+    if (mode === 'pin') {
+      ls.querySelectorAll('.ex-pad button').forEach((b) => (b.onclick = () => press(b.dataset.n)));
+      $('ls-notme').onclick = async () => {
+        if (!confirm(`Log ${me.name} out so someone else can use this computer?`)) return;
+        await lockAccount(); unlockScreen();
+        showView('explorer'); if (typeof drawGrid === 'function') drawGrid();
+        pickAccount();
+      };
+      $('ls-teacher').onclick = () => render('teacher');
+      ls.querySelector('.ls-card').tabIndex = -1; ls.querySelector('.ls-card').focus();
+    } else {
+      $('ls-back').onclick = () => { pin = ''; render('pin'); };
+      $('ls-tform').onsubmit = async (e) => {
+        e.preventDefault();
+        try {
+          // checks the password and starts a fresh login for the kid; the teacher is NOT logged in on this computer
+          const t = await exApi('/teacher/login', { method: 'POST', body: { password: $('ls-tpw').value }, code: null });
+          const j = await exApi(`/students/${me.id}/session`, { method: 'POST', body: {}, teacherToken: t.token });
+          setMe({ id: j.id, name: j.name, token: j.studentToken });
+          unlockScreen();
+        } catch (err2) { render('teacher', err2.message); }
+      };
+      setTimeout(() => $('ls-tpw')?.focus(), 30);
+    }
+  };
+  const press = async (n) => {
+    if (n === 'back') pin = pin.slice(0, -1);
+    else if (n === 'ok') {
+      if (pin.length < 4) return render('pin', 'Your PIN has at least 4 numbers.');
+      try {
+        const j = await exApi(`/students/${me.id}/unlock`, { method: 'POST', body: { pin } });
+        setMe({ id: j.id, name: j.name, token: j.studentToken });  // a fresh session for the same kid
+        pin = ''; unlockScreen(); return;
+      } catch (e) { pin = ''; return render('pin', e.message); }
+    } else if (pin.length < 6) pin += n;
+    render('pin');
+  };
+  ls.addEventListener('keydown', (e) => {
+    if (!ls.querySelector('.ex-pad')) return;  // teacher form: let the input handle keys
+    if (/^\d$/.test(e.key)) press(e.key);
+    else if (e.key === 'Backspace') press('back');
+    else if (e.key === 'Enter') { e.preventDefault(); press('ok'); }
+  });
+  render('pin');
+}
+
+$('btn-lockscreen').onclick = lockScreen;
+updateAccountBadge();
+// Reloading the page doesn't get past the lock screen.
+if (screenLocked()) { if (getMe()) showLockScreen(); else unlockScreen(); }
