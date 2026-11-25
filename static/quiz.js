@@ -304,7 +304,7 @@ function showResults() {
   </div>`;
   $('qz-home').onclick = quizStart;
   if (reward?.item) bindReward(reward);
-  $('qz-shop')?.addEventListener('click', () => { openWardrobe(); document.querySelector('.wr-tabs [data-t="shop"]').click(); });
+  $('qz-shop')?.addEventListener('click', () => { openWardrobe('shop'); });
   $('qz-again').onclick = () => beginQuiz(QZ.settings.n, QZ.settings.hands);
   $('qz-tour').onclick = () => $('btn-tour').click();
   $('qz-inside').onclick = () => showView('inside');

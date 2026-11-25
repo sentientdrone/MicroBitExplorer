@@ -82,11 +82,71 @@ const SLOT_ORDER_FRONT = ['neck', 'face', 'head', 'hand', 'ride'];
 const SLOT_NAMES = { head: 'Head', face: 'Face', neck: 'Neck', hand: 'Hand', ride: 'Feet / ride', back: 'Back', aura: 'Aura' };
 
 /* ------------------------------------------------------ saved state */
+// Whose Bit is loaded: this computer's own Bit (saved in the browser), or, while a kid's
+// account is unlocked in the Explorer, that kid's Bit (saved on their account on the class server).
 const HELPER_KEY = 'microbit-helper';
-let HS = { name: 'Bit', owned: [], equipped: {}, bucks: 100 };  // everyone starts with 100 Bit Bucks
-try { HS = { ...HS, ...JSON.parse(localStorage.getItem(HELPER_KEY) || '{}') }; } catch {}
-const saveHS = () => { try { localStorage.setItem(HELPER_KEY, JSON.stringify(HS)); } catch {} };
-if (typeof HS.bucks !== 'number') { HS.bucks = 100; saveHS(); }  // older saves: give the starting money
+const freshBit = () => ({ name: 'Bit', owned: [], equipped: {}, bucks: 100 });  // everyone starts with 100 Bit Bucks
+function loadComputerBit() {
+  let b = freshBit();
+  try { b = { ...b, ...JSON.parse(localStorage.getItem(HELPER_KEY) || '{}') }; } catch {}
+  if (typeof b.bucks !== 'number') b.bucks = 100;  // older saves: give the starting money
+  return b;
+}
+let HS = loadComputerBit();
+let bitOwner = null;          // { id, name } of the kid whose Bit is loaded, or null for this computer's Bit
+let bitSync = '';             // '', 'loading', 'saved', 'offline'
+function saveHS() {
+  if (!bitOwner) { try { localStorage.setItem(HELPER_KEY, JSON.stringify(HS)); } catch {} return; }
+  saveKidBit();
+}
+
+/* ------------------------------------------- kid's Bit on their account */
+let bitSaveTimer = null;
+function saveKidBit(retry = false) {
+  clearTimeout(bitSaveTimer);
+  if (!bitOwner || typeof exApi !== 'function') return;
+  const owner = bitOwner.id, snapshot = JSON.parse(JSON.stringify(HS));
+  // exApi builds its headers (with the kid's token) straight away, so a save started just
+  // before locking still reaches the right account.
+  exApi('/me/profile', { method: 'POST', body: { profile: snapshot } })
+    .then(() => { if (bitOwner?.id === owner) { bitSync = 'saved'; showBitSync(); } })
+    .catch(() => {
+      if (bitOwner?.id !== owner) return;
+      bitSync = 'offline'; showBitSync();
+      if (!retry) bitSaveTimer = setTimeout(() => saveKidBit(true), 10000);  // try once more
+    });
+}
+
+// Called by the Explorer whenever a kid unlocks or locks their account.
+async function onAccountChange(me) {
+  if (me && me.id === bitOwner?.id) return;
+  if (!me) {
+    if (!bitOwner) return;
+    bitOwner = null; bitSync = ''; HS = loadComputerBit(); refreshBitViews();
+    return;
+  }
+  bitOwner = { id: me.id, name: me.name }; bitSync = 'loading';
+  HS = freshBit(); refreshBitViews();
+  try {
+    const j = await exApi('/me/profile');
+    if (bitOwner?.id !== me.id) return;
+    if (j.profile) { HS = { ...freshBit(), ...j.profile }; bitSync = 'saved'; }
+    else { HS = freshBit(); saveKidBit(); }  // first time: a brand-new Bit with 100 Bit Bucks
+  } catch { if (bitOwner?.id === me.id) bitSync = 'offline'; }
+  refreshBitViews();
+}
+
+function bitSyncText() {
+  if (!bitOwner) return '💻 Saved on this computer';
+  return { loading: `⏳ Loading ${esc(bitOwner.name)}'s Bit…`, saved: `☁️ Saved to ${esc(bitOwner.name)}'s account`,
+    offline: `⚠️ Couldn't reach the class server: ${esc(bitOwner.name)}'s changes may not be saved` }[bitSync] || `☁️ ${esc(bitOwner.name)}'s Bit`;
+}
+function showBitSync() { document.querySelectorAll('.bit-sync').forEach((el) => { el.innerHTML = bitSyncText(); el.classList.toggle('warn', bitSync === 'offline'); }); }
+function refreshBitViews() {
+  if (typeof hPanel !== 'undefined' && !hPanel.hidden) renderHelperTop();
+  if (typeof wardrobe !== 'undefined' && wardrobe && !wardrobe.hidden) renderWardrobe();
+  showBitSync();
+}
 
 /* ---------------------------------------------------------- Bit Bucks */
 const PRICES = { junk: 10, common: 40, cool: 80, epic: 150, legendary: 300 };
@@ -180,7 +240,7 @@ function renderHelperTop() {
   $('helper-bot').innerHTML = botSVG();
   $('helper-name').textContent = HS.name;
   const n = HS.owned.length, total = Object.keys(ITEMS).length;
-  $('helper-count').innerHTML = `${n}/${total} outfits · ${BB(HS.bucks)} Bit Bucks`;
+  $('helper-count').innerHTML = `${n}/${total} outfits · ${BB(HS.bucks)} Bit Bucks<br><span class="bit-sync">${bitSyncText()}</span>`;
 }
 
 function say(html, opts = {}) {
@@ -485,7 +545,7 @@ function ask(q) {
 
 /* ========================================================== wardrobe */
 let wardrobe = null;
-function openWardrobe() {
+function openWardrobe(tab = 'outfits') {
   if (!wardrobe) {
     wardrobe = document.createElement('div'); wardrobe.className = 'tour-overlay'; wardrobe.hidden = true;
     wardrobe.innerHTML = `<div class="wr" role="dialog" aria-modal="true" aria-labelledby="wr-title">
@@ -510,12 +570,13 @@ function openWardrobe() {
   }
   renderWardrobe();
   wardrobe.hidden = false;
+  wardrobe.querySelector(`.wr-tabs [data-t="${tab}"]`)?.click();
 }
 
 function renderWardrobe() {
   $('wr-bot').innerHTML = botSVG();
   $('wr-title').textContent = HS.name;
-  $('wr-count').innerHTML = `${HS.owned.length} of ${Object.keys(ITEMS).length} outfits collected<br>${BB(HS.bucks)} Bit Bucks`;
+  $('wr-count').innerHTML = `${HS.owned.length} of ${Object.keys(ITEMS).length} outfits collected<br>${BB(HS.bucks)} Bit Bucks<br><span class="bit-sync">${bitSyncText()}</span>`;
   let html = '';
   for (const [pid, p] of Object.entries(POOLS)) {
     const inPool = Object.entries(ITEMS).filter(([, it]) => poolOf(it) === pid);
@@ -650,3 +711,5 @@ $('helper-form').onsubmit = (e) => { e.preventDefault(); const v = $('helper-inp
 $('helper-bot').onclick = openWardrobe;
 
 $('btn-ask-bit').onclick = () => (hPanel.hidden ? openHelper() : closeHelper());
+
+$('btn-bit').onclick = () => openWardrobe();

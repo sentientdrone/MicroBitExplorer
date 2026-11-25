@@ -562,3 +562,5 @@ button.danger { color: var(--bad); }
 .tqr-bar { height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden; margin-bottom: 3px; }
 .tqr-bar i { display: block; height: 100%; background: var(--ok); }
 @media (max-width: 640px) { .tqm-row { grid-template-columns: 1fr; } }
+
+.bit-sync { font-size: 12px; color: var(--muted); } .bit-sync.warn { color: var(--bad); }

@@ -110,7 +110,7 @@ async function tqFinish() {
     <div class="row qz-end"><button class="primary" id="tq-home">🏠 Back to quiz start</button></div></div>`;
   if (reward.item) bindReward(reward);
   $('tq-home').onclick = quizStart;
-  $('tq-shop').onclick = () => { openWardrobe(); document.querySelector('.wr-tabs [data-t="shop"]').click(); };
+  $('tq-shop').onclick = () => { openWardrobe('shop'); };
   if (stars === 3) confetti();
 }
 

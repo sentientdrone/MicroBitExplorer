@@ -17,7 +17,7 @@ Also:
 - 🤖 **Bit, the coding helper** (Blocks and Manager tabs). Bit checks blocks or Python for common mistakes, explains micro:bit error messages, answers "how do I…?" questions and can add example blocks or code. Bit works offline.
 - 👗 **Outfits** (43) dress Bit up. Kid quizzes win the original 22, teacher quizzes the other 21. The better the score, the better the prize (0% gets a junk item, starting with a trash can).
 - 🎨 **Looks**: change Bit's body colour, eyes, glow colour, mouth and antenna (all free).
-- 🪙 **Bit Bucks and the 🛒 Shop**: start with 100 Bit Bucks and earn more from quizzes (5 per right answer on a Kid quiz, 10 on a teacher quiz, plus a perfect-score bonus). Buy any outfit (10 to 300 by tier) or sell one back for half price.
+- 🪙 **Bit Bucks and the 🛒 Shop** (open with **🤖 Bit** in the top bar): start with 100 Bit Bucks and earn more from quizzes (5 per right answer on a Kid quiz, 10 on a teacher quiz, plus a perfect-score bonus). Buy any outfit (10 to 300 by tier) or sell one back for half price.
 - 🔍 **Search** across every lesson, part, Tour step and quiz question. Press `/` to jump to it.
 - 👩‍🏫 **Parent / teacher code**. A grown-up creates their own code, which unlocks quiz answers in search and opens an answer key.
 - 🔑 **Kid accounts** (Explorer). Each kid unlocks their account with a 4–6 digit PIN on a number pad, and locks it when done (it also auto-locks after 30 minutes idle, or when the browser closes). **Making a new account needs the teacher password.** 5 wrong PINs block the account for a minute. The teacher can reset PINs, rename or delete accounts.
@@ -104,7 +104,8 @@ Then unplug and replug the micro:bit. A snap-packaged Chromium also needs `sudo 
 - The MicroPython, Blocks, Inside (live), Quiz challenges and Bit's error help all need MicroPython on the board. Use **Install MicroPython** in the Manager tab.
 - WebUSB flashing needs DAPLink interface firmware 0249 or newer (shown in the Device card). Flashing through the USB drive works with any version.
 - The server listens only on 127.0.0.1 and refuses cross-site requests.
-- Quiz progress, Bit's outfits, looks and Bit Bucks, the parent/teacher code and saved blocks are stored in the browser (per computer and browser). The teacher code is stored hashed. It's a simple lock to stop peeking, not strong security.
+- **Bit and Bit Bucks follow the kid.** While a kid's account is unlocked, their Bit (name, outfits, looks) and Bit Bucks are saved to their account on the class server, so they get them back on any computer. Without an unlocked account, the computer's own Bit is saved in the browser. A kid's first login starts with a fresh Bit and 100 Bit Bucks. The teacher sees each kid's Bit Bucks and outfit count in 👥 Kid accounts.
+- Quiz progress, the parent/teacher code and saved blocks are stored in the browser (per computer and browser). The teacher code is stored hashed. It's a simple lock to stop peeking, not strong security.
 - Explorer data (builds, kid accounts, class settings) is stored on the class server as JSON files. The teacher password and kid PINs are stored hashed (PBKDF2). On a school network the class server uses plain HTTP. To reach it from the internet, put it behind HTTPS (for example a Cloudflare Tunnel, see above) and use a strong teacher password: the class code and kid PINs are made for convenience, not for strong security.
 
 ## Bundled third-party files

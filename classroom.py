@@ -30,6 +30,11 @@ TEACHER_SESSION_SECONDS = 8 * 3600
 STUDENT_SESSION_SECONDS = 8 * 3600
 PIN_RE = re.compile(r"^\d{4,6}$")
 PIN_TRIES, PIN_LOCKOUT_SECONDS = 5, 60
+# A kid's Bit (helper robot) saved on their account
+BIT_SLOTS = {"head", "face", "neck", "hand", "ride", "back", "aura"}
+BIT_LOOK_KEYS = {"body", "glow", "eyes", "mouth", "antenna"}
+ITEM_ID = re.compile(r"^[a-z0-9_]{1,30}$")
+MAX_BUCKS = 1_000_000
 CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # no 0/O/1/I mix-ups when read off a board
 
 # Pages allowed to call this API from another origin: each student's own local copy of the app.
@@ -360,6 +365,9 @@ class Classroom:
             if teacher:
                 item["builds"] = sum(b.get("studentId") == sid for b in builds)
                 item["created"] = st.get("created")
+                prof = st.get("profile") or {}
+                item["bucks"] = prof.get("bucks")
+                item["outfits"] = len(prof.get("owned") or [])
             out.append(item)
         return {"students": sorted(out, key=lambda x: x["name"].lower())}
 
@@ -419,6 +427,37 @@ class Classroom:
         if not me:
             raise ApiError(401, "account is locked")
         return me
+
+    @staticmethod
+    def _clean_profile(p):
+        if not isinstance(p, dict):
+            raise ApiError(400, "bad Bit profile")
+        owned = []
+        for x in p.get("owned") or []:
+            if isinstance(x, str) and ITEM_ID.match(x) and x not in owned:
+                owned.append(x)
+        equipped = {k: v for k, v in (p.get("equipped") or {}).items()
+                    if k in BIT_SLOTS and isinstance(v, str) and v in owned}
+        look = {k: str(v)[:20] for k, v in (p.get("look") or {}).items() if k in BIT_LOOK_KEYS}
+        bucks = p.get("bucks")
+        bucks = max(0, min(MAX_BUCKS, int(bucks))) if isinstance(bucks, (int, float)) else 100
+        return {"name": (str(p.get("name") or "Bit").strip() or "Bit")[:20], "owned": owned[:200],
+                "equipped": equipped, "look": look, "bucks": bucks, "saved": time.time()}
+
+    def get_profile(self, student_token):
+        me = self.me(student_token)
+        return {"profile": self._students().get(me["id"], {}).get("profile")}
+
+    def save_profile(self, student_token, body):
+        me = self.me(student_token)
+        prof = self._clean_profile(body.get("profile"))
+        with self.lock:
+            students = self._students()
+            if me["id"] not in students:
+                raise ApiError(404, "that account doesn't exist")
+            students[me["id"]]["profile"] = prof
+            self._save_json(self.dir / "students.json", students)
+        return {"ok": True, "saved": prof["saved"]}
 
     def update_student(self, student_id, token, body):
         self._require_teacher(token)
@@ -629,6 +668,11 @@ class Classroom:
             return self.lock_account(student)
         if method == "GET" and parts == ["me"]:
             return self.me(student)
+        if parts == ["me", "profile"]:
+            if method == "GET":
+                return self.get_profile(student)
+            if method == "POST":
+                return self.save_profile(student, body)
         if parts[:1] == ["quizzes"]:
             if method == "GET" and len(parts) == 1:
                 return self.list_quizzes(token)

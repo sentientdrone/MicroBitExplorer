@@ -14,7 +14,11 @@ let CLAPPED = new Set(exLoad(EX_CLAPS, []));   // "<account id>:<build id>" pair
 // The unlocked kid account lives in sessionStorage: closing the browser locks it.
 const meKey = () => 'microbit-class-me:' + (CL?.server || location.origin);
 function getMe() { try { return JSON.parse(sessionStorage.getItem(meKey())); } catch { return null; } }
-function setMe(me) { try { me ? sessionStorage.setItem(meKey(), JSON.stringify(me)) : sessionStorage.removeItem(meKey()); } catch {} updateAccountBadge(); }
+function setMe(me) {
+  try { me ? sessionStorage.setItem(meKey(), JSON.stringify(me)) : sessionStorage.removeItem(meKey()); } catch {}
+  updateAccountBadge();
+  if (typeof onAccountChange === 'function') onAccountChange(me);  // load or put away this kid's Bit
+}
 const EX = { builds: [], filter: 'all', by: '', q: '', teacher: false, timer: null, preview: null };
 
 const teacherKey = () => 'microbit-class-teacher:' + (CL?.server || location.origin);
@@ -312,10 +316,11 @@ async function manageAccounts() {
   exDialog(`<div class="tdlg-head"><h2>👥 Kid accounts</h2><button id="exm-close">Done ✓</button></div>
     <p class="muted">Kids unlock their account with their PIN. You can reset a forgotten PIN here.</p>
     <div class="row"><button class="primary" id="exm-new">➕ New account</button></div>
-    <table class="ex-acct"><thead><tr><th>Name</th><th>Builds</th><th></th></tr></thead><tbody>
+    <table class="ex-acct"><thead><tr><th>Name</th><th>Builds</th><th>Bit Bucks</th><th>Outfits</th><th></th></tr></thead><tbody>
       ${list.map((s) => `<tr data-id="${s.id}" data-name="${esc(s.name)}"><td>${esc(s.name)}</td><td>${s.builds ?? ''}</td>
+        <td>${s.bucks ?? '<span class="muted">not yet</span>'}</td><td>${s.outfits ?? 0}</td>
         <td class="act"><button class="small" data-a="pin">🔑 Reset PIN</button><button class="small" data-a="name">✏️ Rename</button><button class="small danger" data-a="del">🗑️</button></td></tr>`).join('')
-        || '<tr><td colspan="3" class="muted">No accounts yet.</td></tr>'}
+        || '<tr><td colspan="5" class="muted">No accounts yet.</td></tr>'}
     </tbody></table><p class="tdlg-err" id="exm-err"></p>`, () => {
     $('exm-close').onclick = exClose;
     $('exm-new').onclick = () => newAccount();
@@ -591,3 +596,5 @@ window.onExplorerShow = exShow;
 $('bk-share').onclick = () => openShare('blocks');
 $('btn-share-py').onclick = () => openShare('python');
 if (!$('view-explorer').hidden) exShow();
+// Still unlocked from earlier in this browser session (e.g. after a page reload): load that kid's Bit.
+if (getMe()) onAccountChange(getMe());
