@@ -14,6 +14,7 @@ A local web app for the BBC micro:bit v1 that runs on your own computer. It conn
 | 🎓 **Tour** | A guided walkthrough of every part of the connected board, with live readings. |
 
 Also:
+- 🎮 **micro:bit simulator** (the small icon at the bottom right of every tab). It's a pretend micro:bit with LEDs, A/B buttons (also the A and B keys), touchable pins, tilt, shake and other gestures, temperature, light, compass, magnet, a speaker and a radio. Press **🔌 Use the simulator as my micro:bit** and the whole app talks to it like a real board on the serial line: Run in Blocks and the code editor, the console's `>>>` prompt, sensor readings, the Tour, the Inside lessons, quiz challenges, Save as main.py (Ctrl-D runs it) and Bit's error help. It shows what the program is doing: the board tilts, notes float up from the speaker, pins light up, radio waves pulse, and there's an activity log. Python runs in the browser with Skulpt, so a few advanced MicroPython features aren't available, and some built-in pictures and tunes are close approximations. If the browser has no Web Serial (Firefox, Safari), the simulator is used automatically.
 - 🤖 **Bit, the coding helper** (Blocks and Manager tabs). Bit checks blocks or Python for common mistakes, explains micro:bit error messages, answers "how do I…?" questions and can add example blocks or code. Bit works offline.
 - 👗 **Outfits** (43) dress Bit up. Kid quizzes win the original 22, teacher quizzes the other 21. The better the score, the better the prize (0% gets a junk item, starting with a trash can).
 - 🎨 **Looks**: change Bit's body colour, eyes, glow colour, mouth and antenna. The starter look is free; the other 35 looks are unlocked as a bonus prize from quizzes (a look of the same tier as the outfit prize) or bought in the shop.
@@ -115,4 +116,5 @@ Then unplug and replug the micro:bit. A snap-packaged Chromium also needs `sudo 
 |---|---|---|
 | `static/vendor/dap.umd.js` | [DAPjs](https://github.com/ARMmbed/dapjs) 2.3.0 | MIT |
 | `static/vendor/blockly/` | [Blockly](https://github.com/google/blockly) 11.2.1 | Apache-2.0 |
+| `static/vendor/skulpt/` | [Skulpt](https://skulpt.org) 1.2.0 (Python in the browser, for the simulator) | MIT |
 | `static/vendor/micropython-microbit-v1.1.1.hex` | [MicroPython for micro:bit](https://github.com/bbcmicrobit/micropython) v1.1.1 | MIT |

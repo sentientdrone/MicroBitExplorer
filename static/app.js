@@ -230,7 +230,7 @@ function writeFile(name, data, onProgress) {
     } finally { await run('f.close()'); }
   });
 }
-const removeFile = (name) => rawExec(`import os\nos.remove(${pyStr(name)})`);
+function removeFile(name) { return rawExec(`import os\nos.remove(${pyStr(name)})`); }
 
 /* ------------------------------------------------------------------ WebUSB */
 let usbDevice = null;

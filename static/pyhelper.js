@@ -116,7 +116,7 @@ function explainPyError() {
       : `Python doesn't know anything called <code>${esc(m[1])}</code>. Check the spelling (and capital letters), or give it a value before you use it.`],
     [/AttributeError: type object 'Image' has no attribute '(\w+)'/, (m) => `There's no picture called <code>Image.${esc(m[1])}</code>. Try <code>Image.HAPPY</code> or <code>Image.HEART</code>.`],
     [/AttributeError: '(\w+)' object has no attribute '(\w+)'/, (m) => `<code>${esc(m[2])}</code> isn't something a ${esc(m[1].replace('MicroBit', ''))} can do. Check the spelling. For example, it's <code>is_pressed()</code>, not <code>ispressed()</code>.`],
-    [/TypeError: can't convert .* to str|must be str|unsupported types for __add__: 'str'|can only concatenate/, 'You tried to join <b>words</b> and a <b>number</b> with <code>+</code>. Turn the number into words first: <code>"Score: " + str(score)</code>'],
+    [/TypeError: can't convert .* to str|must be str|unsupported types for __add__: 'str'|can only concatenate|cannot concatenate/, 'You tried to join <b>words</b> and a <b>number</b> with <code>+</code>. Turn the number into words first: <code>"Score: " + str(score)</code>'],
     [/TypeError: (?:function )?takes (\d+) positional arguments? but (\d+)/, (m) => `A function was given ${m[2]} things inside its brackets, but it only wants ${m[1]}. Check the commas.`],
     [/TypeError: 'int' object is not callable|object isn't callable/, 'There are brackets <code>()</code> after something that isn\'t a function, maybe a variable with the same name as a function.'],
     [/ValueError: (index out of range|brightness)/, 'An LED number was out of range: <b>x</b> and <b>y</b> must be 0 to 4, and brightness 0 to 9.'],
