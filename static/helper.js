@@ -85,7 +85,7 @@ const SLOT_NAMES = { head: 'Head', face: 'Face', neck: 'Neck', hand: 'Hand', rid
 // Whose Bit is loaded: this computer's own Bit (saved in the browser), or, while a kid's
 // account is unlocked in the Explorer, that kid's Bit (saved on their account on the class server).
 const HELPER_KEY = 'microbit-helper';
-const freshBit = () => ({ name: 'Bit', owned: [], equipped: {}, bucks: 100, ownedLooks: [] });  // everyone starts with 100 Bit Bucks
+const freshBit = () => ({ name: 'Bit', owned: [], equipped: {}, bucks: 100, ownedLooks: [], games: { owned: [], charges: {}, updated: {}, best: {} } });  // everyone starts with 100 Bit Bucks
 // Bits saved before looks could be locked: keep whatever look they already use unlocked.
 function ensureLooks(b) {
   // The old boot used to share the "ride" spot; it has its own "feet" spot now.
@@ -596,14 +596,14 @@ function openWardrobe(tab = 'outfits') {
     wardrobe.innerHTML = `<div class="wr" role="dialog" aria-modal="true" aria-labelledby="wr-title">
       <div class="wr-left"><div id="wr-bot"></div><h2 id="wr-title"></h2><button class="small" id="wr-rename">✏️ Rename</button>
         <p class="muted" id="wr-count"></p><button class="primary" id="wr-quiz">🏆 Win more in the quiz</button></div>
-      <div class="wr-right"><div class="wr-head"><div class="qz-seg wr-tabs"><button data-t="outfits" class="on">👗 Outfits</button><button data-t="looks">🎨 Looks</button><button data-t="shop">🛒 Shop</button></div><button id="wr-close">Done ✓</button></div>
+      <div class="wr-right"><div class="wr-head"><div class="qz-seg wr-tabs"><button data-t="outfits" class="on">👗 Outfits</button><button data-t="looks">🎨 Looks</button><button data-t="shop">🛒 Shop</button><button data-t="games">🕹️ Games</button></div><button id="wr-close">Done ✓</button></div>
         <div id="wr-outfits"><p class="muted">Click an accessory to put it on or take it off. One per spot (head, face, hand…).</p><div id="wr-items"></div></div>
-        <div id="wr-looks" hidden></div><div id="wr-shop" hidden></div></div></div>`;
+        <div id="wr-looks" hidden></div><div id="wr-shop" hidden></div><div id="wr-games" hidden></div></div></div>`;
     document.body.appendChild(wardrobe);
     $('wr-close').onclick = () => { wardrobe.hidden = true; };
     wardrobe.querySelectorAll('.wr-tabs button').forEach((b) => (b.onclick = () => {
       wardrobe.querySelectorAll('.wr-tabs button').forEach((x) => x.classList.toggle('on', x === b));
-      $('wr-outfits').hidden = b.dataset.t !== 'outfits'; $('wr-looks').hidden = b.dataset.t !== 'looks'; $('wr-shop').hidden = b.dataset.t !== 'shop';
+      $('wr-outfits').hidden = b.dataset.t !== 'outfits'; $('wr-looks').hidden = b.dataset.t !== 'looks'; $('wr-shop').hidden = b.dataset.t !== 'shop'; $('wr-games').hidden = b.dataset.t !== 'games';
     }));
     wardrobe.addEventListener('click', (e) => { if (e.target === wardrobe) wardrobe.hidden = true; });
     $('wr-rename').onclick = () => {
@@ -642,6 +642,7 @@ function renderWardrobe() {
   $('wr-items').innerHTML = html;
   renderLooks();
   renderShop();
+  if (typeof renderArcade === 'function') renderArcade();
   $('wr-items').querySelectorAll('.wr-item:not(.locked)').forEach((b) => (b.onclick = () => {
     const it = ITEMS[b.dataset.id];
     if (HS.equipped[it.slot] === b.dataset.id) delete HS.equipped[it.slot]; else HS.equipped[it.slot] = b.dataset.id;
@@ -693,6 +694,7 @@ function renderShop() {
   $('wr-shop').innerHTML = `<div class="shop-bal">You have ${BB(HS.bucks)} <b>Bit Bucks</b>
       <span class="muted">Earn more: 5 per right answer on a Kid quiz, 10 on a teacher quiz, plus a bonus for a perfect score.</span></div>
     ${shopMsg ? `<p class="shop-msg">${shopMsg}</p>` : ''}
+    ${typeof shopGamesHTML === 'function' ? shopGamesHTML() : ''}
     <h3 class="wr-pool">🛍️ Buy</h3>${forSale.length ? `<div class="shop-grid">${forSale.sort(byTier).map((x) => card(x, 'buy')).join('')}</div>` : '<p class="muted">You own every outfit! 🎉</p>'}
     <h3 class="wr-pool">🎨 Looks</h3>${lockedLooks.length ? `<div class="shop-grid">${lockedLooks.map(([k, v]) => {
       const t = TIERS[lookTier(k, v)], price = PRICES[lookTier(k, v)];
@@ -707,6 +709,7 @@ function renderShop() {
     shopMsg = `🛍️ You bought the <b>${esc(it.name)}</b> ${it.icon}! Find it in 👗 Outfits.`;
     renderWardrobe(); if (!hPanel.hidden) renderHelperTop();
   }));
+  if (typeof bindShopGames === 'function') bindShopGames();
   $('wr-shop').querySelectorAll('[data-buylook]').forEach((b) => (b.onclick = () => {
     const [k, v] = b.dataset.buylook.split(':'), price = PRICES[lookTier(k, v)];
     if (HS.bucks < price || hasLook(k, v)) return;

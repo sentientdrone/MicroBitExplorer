@@ -463,7 +463,18 @@ class Classroom:
         bucks = p.get("bucks")
         bucks = max(0, min(MAX_BUCKS, int(bucks))) if isinstance(bucks, (int, float)) else 100
         return {"name": (str(p.get("name") or "Bit").strip() or "Bit")[:20], "owned": owned[:200],
-                "equipped": equipped, "look": look, "ownedLooks": owned_looks[:100], "bucks": bucks, "saved": time.time()}
+                "equipped": equipped, "look": look, "ownedLooks": owned_looks[:100], "bucks": bucks,
+                "games": Classroom._clean_games(p.get("games")), "saved": time.time()}
+
+    @staticmethod
+    def _clean_games(g):
+        """Arcade games a kid owns, their battery charges and best scores."""
+        g = g if isinstance(g, dict) else {}
+        owned = [x for x in (g.get("owned") or []) if isinstance(x, str) and ITEM_ID.match(x)][:20]
+        num = lambda d, lo, hi, cast: {k: max(lo, min(hi, cast(v))) for k, v in (d or {}).items()
+                                       if k in owned and isinstance(v, (int, float))}
+        return {"owned": owned, "charges": num(g.get("charges"), 0, 3, int),
+                "updated": num(g.get("updated"), 0, 1e14, float), "best": num(g.get("best"), 0, 10**7, int)}
 
     def get_profile(self, student_token):
         me = self.me(student_token)
