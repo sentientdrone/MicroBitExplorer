@@ -570,3 +570,8 @@ window.addEventListener('resize', () => insideMode === 'how' && drawGraph());
 // Let go of a pretend press wherever the pointer is released.
 window.addEventListener('pointerup', () => { H.sim.a = H.sim.b = H.sim.t0 = false; });
 if (!$('view-inside').hidden) selectPart(selected);
+
+// Serial connected/disconnected from another tab: refresh the open part card's live readings.
+document.addEventListener('serial-change', () => {
+  if (!$('view-inside').hidden && insideMode === 'map' && insideBuilt) selectPart(selected);
+});

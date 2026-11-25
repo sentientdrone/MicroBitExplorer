@@ -298,6 +298,8 @@ function showBoard(sn) {
   $('i-board').textContent = BOARDS[sn.slice(0, 4)] || `unknown board (ID ${sn.slice(0, 4)})`;
 }
 function setSerialUI(on) {
+  // Let other tabs (quiz, tour…) know the connection changed, so they don't show stale "connect" prompts.
+  document.dispatchEvent(new CustomEvent('serial-change', { detail: { connected: on } }));
   setPill('pill-serial', on ? 'on' : '');
   $('btn-serial').textContent = on ? 'Disconnect serial' : 'Connect serial';
   $('btn-serial').classList.toggle('primary', !on);

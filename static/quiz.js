@@ -115,10 +115,10 @@ function quizStart() {
       ${QZ.best ? `<p class="muted">Your best score so far: <b>${QZ.best}%</b></p>` : ''}
       ${canLive ? '' : `<p class="muted">Tip: connect the micro:bit and it will react to your answers. <button class="small" id="qz-connect">Connect serial</button></p>`}
     </div>`;
-  let n = QZ.settings?.n || 10;
+  let n = QZ.pendingN || QZ.settings?.n || 10;
   document.querySelectorAll('.qz-seg button').forEach((x) => x.classList.toggle('on', +x.dataset.n === n));
   document.querySelectorAll('.qz-seg button').forEach((b) => (b.onclick = () => {
-    n = +b.dataset.n; document.querySelectorAll('.qz-seg button').forEach((x) => x.classList.toggle('on', x === b));
+    n = QZ.pendingN = +b.dataset.n; document.querySelectorAll('.qz-seg button').forEach((x) => x.classList.toggle('on', x === b));
   }));
   $('qz-connect')?.addEventListener('click', async () => { try { await serialConnect(); quizStart(); } catch {} });
   $('qz-go').onclick = () => beginQuiz(n, $('qz-hands').checked);
@@ -338,5 +338,9 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-window.onQuizShow = () => { if (!$('quiz-main').childElementCount || !QZ.list.length) quizStart(); };
+const onQuizStartPage = () => !!$('quiz-main').querySelector('.qz-start');
+window.onQuizShow = () => { if (!$('quiz-main').childElementCount || !QZ.list.length || onQuizStartPage()) quizStart(); };
+// Connected (or disconnected) serial in another tab: redraw the start page so the
+// hands-on option matches. A quiz already in progress is left alone.
+document.addEventListener('serial-change', () => { if (onQuizStartPage()) quizStart(); });
 if (!$('view-quiz').hidden) quizStart();
