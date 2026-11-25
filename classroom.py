@@ -30,6 +30,13 @@ TEACHER_SESSION_SECONDS = 8 * 3600
 STUDENT_SESSION_SECONDS = 8 * 3600
 PIN_RE = re.compile(r"^\d{4,6}$")
 PIN_TRIES, PIN_LOCKOUT_SECONDS = 5, 60
+# Live class games played with a teacher quiz
+GAME_MODES = {"mining", "race"}
+ORES = [  # name, emoji, value, chance weight
+    ("Stone", "🪨", 1, 40), ("Coal", "🌑", 3, 25), ("Iron", "🔩", 6, 17),
+    ("Gold", "🪙", 12, 10), ("Diamond", "💎", 25, 6), ("Emerald", "💚", 50, 2),
+]
+MIN_ANSWER_SECONDS = 0.6  # stops answer-spamming
 # A kid's Bit (helper robot) saved on their account
 BIT_SLOTS = {"head", "face", "neck", "hand", "ride", "feet", "back", "aura"}
 BIT_LOOK_KEYS = {"body", "glow", "eyes", "mouth", "antenna"}
@@ -78,6 +85,7 @@ class Classroom:
         self.sessions = {}          # teacher token -> expiry time
         self.student_sessions = {}  # student token -> (student id, expiry time)
         self.login_fails = []       # times of recent wrong teacher passwords (slows down guessing)
+        self.games = {}             # live games, in memory: game id -> game
         try:
             self.builds_dir.mkdir(parents=True, exist_ok=True)
             self.quizzes_dir.mkdir(parents=True, exist_ok=True)
@@ -579,7 +587,9 @@ class Classroom:
         self._require_teacher(token)
         return {"quizzes": [{"id": q["id"], "code": q["code"], "title": q["title"], "questions": len(q["questions"]),
                              "open": q["open"], "created": q["created"], "results": len(q["results"]),
-                             "kids": len({r["studentId"] for r in q["results"]})} for q in self._all_quizzes()]}
+                             "kids": len({r["studentId"] for r in q["results"]}),
+                             "liveGame": (lambda g: {"id": g["id"], "mode": g["mode"]} if g else None)(self._live_game_for(q["id"])),
+                             "lastGame": (q.get("games") or [None])[-1]} for q in self._all_quizzes()]}
 
     def get_quiz_admin(self, quiz_id, token):
         self._require_teacher(token)
@@ -623,7 +633,9 @@ class Classroom:
     def play_quiz(self, quiz_code, code, token, student_token):
         q, _ = self._playable(quiz_code, code, token, student_token)
         # never send the right answers to the kid's computer up front
-        return {"code": q["code"], "title": q["title"], "questions": [{"q": x["q"], "answers": x["answers"]} for x in q["questions"]]}
+        live = self._live_game_for(q["id"])
+        return {"code": q["code"], "title": q["title"], "questions": [{"q": x["q"], "answers": x["answers"]} for x in q["questions"]],
+                "game": {"id": live["id"], "mode": live["mode"]} if live else None, "ores": self.ore_table()}
 
     def check_answer(self, quiz_code, body, code, token, student_token):
         q, _ = self._playable(quiz_code, code, token, student_token)
@@ -648,6 +660,177 @@ class Classroom:
                                      "answers": answers, "at": time.time()})
                 self._save_json(self.quizzes_dir / f"{q['id']}.json", q)
         return {"score": score, "total": total}
+
+
+    # ----------------------------------------------------- live games
+    def _game(self, game_id):
+        g = self.games.get(game_id or "")
+        if not g:
+            raise ApiError(404, "that game isn't running any more")
+        if not g["ended"] and time.time() >= g["endsAt"]:
+            self._finish(g)
+        return g
+
+    def _live_game_for(self, quiz_id):
+        for g in list(self.games.values()):
+            if g["quizId"] == quiz_id:
+                if not g["ended"] and time.time() >= g["endsAt"]:
+                    self._finish(g)
+                if not g["ended"]:
+                    return g
+        return None
+
+    @staticmethod
+    def _standings(g):
+        players = sorted(g["players"].values(), key=lambda p: (-p["score"], p["reachedAt"]))
+        out, place = [], 0
+        for i, p in enumerate(players):
+            if i == 0 or p["score"] != players[i - 1]["score"]:
+                place = i + 1  # equal scores share a place
+            out.append({"place": place, "id": p["id"], "name": p["name"], "score": p["score"],
+                        "correct": p["correct"], "answered": p["answered"], "ores": p["ores"]})
+        return out
+
+    def _finish(self, g):
+        if g["ended"]:
+            return
+        g["ended"] = True
+        g["endedAt"] = min(time.time(), g["endsAt"])
+        try:  # keep a record with the quiz for the teacher
+            with self.lock:
+                q = self._quiz(g["quizId"])
+                q.setdefault("games", []).append({"mode": g["mode"], "started": g["started"], "minutes": g["minutes"],
+                                                  "standings": [{k: p[k] for k in ("place", "name", "score", "correct")} for p in self._standings(g)]})
+                q["games"] = q["games"][-20:]
+                self._save_json(self.quizzes_dir / f"{g['quizId']}.json", q)
+        except ApiError:
+            pass
+
+    def _public_game(self, g, me_id=None, full=False):
+        st = self._standings(g)
+        now = time.time()
+        out = {"id": g["id"], "mode": g["mode"], "title": g["title"], "minutes": g["minutes"], "ended": g["ended"],
+               "secondsLeft": 0 if g["ended"] else max(0, round(g["endsAt"] - now, 1)),
+               "players": len(st), "top": st if full else st[:10], "ores": self.ore_table()}
+        if me_id:
+            mine = next((p for p in st if p["id"] == me_id), None)
+            out["me"] = mine
+        return out
+
+    def start_game(self, quiz_id, token, body):
+        self._require_teacher(token)
+        mode = body.get("mode")
+        if mode not in GAME_MODES:
+            raise ApiError(400, "pick a game mode")
+        try:
+            minutes = float(body.get("minutes") or 5)
+        except (TypeError, ValueError):
+            raise ApiError(400, "set how many minutes the game lasts")
+        if not 0.5 <= minutes <= 60:
+            raise ApiError(400, "a game can last from half a minute to 60 minutes")
+        q = self._quiz(quiz_id)
+        old = self._live_game_for(quiz_id)
+        if old:
+            self._finish(old)
+        now = time.time()
+        g = {"id": secrets.token_hex(6), "quizId": quiz_id, "title": q["title"], "mode": mode, "minutes": minutes,
+             "started": now, "endsAt": now + minutes * 60, "ended": False, "players": {}}
+        self.games[g["id"]] = g
+        for gid, old_g in list(self.games.items()):  # forget games that ended over a day ago
+            if old_g["ended"] and now - old_g.get("endedAt", now) > 86400:
+                del self.games[gid]
+        return self._public_game(g, full=True)
+
+    def game_status_teacher(self, game_id, token):
+        self._require_teacher(token)
+        return self._public_game(self._game(game_id), full=True)
+
+    def end_game(self, game_id, token):
+        self._require_teacher(token)
+        g = self._game(game_id)
+        g["endsAt"] = min(g["endsAt"], time.time())
+        self._finish(g)
+        return self._public_game(g, full=True)
+
+    def _player(self, g, me, q):
+        p = g["players"].get(me["id"])
+        if not p:
+            order = list(range(len(q["questions"])))
+            secrets.SystemRandom().shuffle(order)
+            p = {"id": me["id"], "name": me["name"], "score": 0, "correct": 0, "answered": 0, "ores": {},
+                 "order": order, "pos": 0, "askedAt": time.time(), "reachedAt": time.time()}
+            g["players"][me["id"]] = p
+        return p
+
+    def _next_question(self, p, q):
+        if p["pos"] >= len(p["order"]):  # went through them all: shuffle and go round again
+            secrets.SystemRandom().shuffle(p["order"])
+            p["pos"] = 0
+        qi = p["order"][p["pos"]]
+        item = q["questions"][qi]
+        return {"i": qi, "q": item["q"], "answers": item["answers"]}
+
+    def _playing(self, game_id, code, student_token):
+        self._check_code(code)
+        me = self.student_for(student_token)
+        if not me:
+            raise ApiError(401, "unlock your account first, so you can play")
+        g = self._game(game_id)
+        return g, me, self._quiz(g["quizId"])
+
+    def join_game(self, game_id, code, student_token):
+        g, me, q = self._playing(game_id, code, student_token)
+        out = self._public_game(g, me["id"])
+        if not g["ended"]:
+            p = self._player(g, me, q)
+            p["askedAt"] = time.time()
+            out["question"] = self._next_question(p, q)
+            out["me"] = next(x for x in self._standings(g) if x["id"] == me["id"])
+        return out
+
+    def game_status(self, game_id, code, student_token):
+        g, me, _ = self._playing(game_id, code, student_token)
+        return self._public_game(g, me["id"])
+
+    def game_answer(self, game_id, body, code, student_token):
+        g, me, q = self._playing(game_id, code, student_token)
+        if g["ended"]:
+            raise ApiError(409, "time's up! The game has ended")
+        p = self._player(g, me, q)
+        now = time.time()
+        expected = self._next_question(p, q)
+        if body.get("i") != expected["i"]:
+            raise ApiError(409, "that question was already answered")
+        if now - p["askedAt"] < MIN_ANSWER_SECONDS:
+            raise ApiError(429, "slow down and read the question!")
+        item = q["questions"][expected["i"]]
+        correct = body.get("choice") == item["correct"]
+        reward = None
+        with self.lock:
+            p["answered"] += 1
+            if correct:
+                p["correct"] += 1
+                if g["mode"] == "mining":
+                    name, emoji, value, _ = secrets.SystemRandom().choices(ORES, weights=[o[3] for o in ORES])[0]
+                    p["ores"][name] = p["ores"].get(name, 0) + 1
+                    reward = {"ore": name, "emoji": emoji, "value": value}
+                else:  # race: 100 points, plus up to 100 more for answering within 10 seconds
+                    bonus = max(0, round(100 - (now - p["askedAt"]) * 10))
+                    value = 100 + bonus
+                    reward = {"points": value, "bonus": bonus}
+                p["score"] += value
+                p["reachedAt"] = now
+            p["pos"] += 1
+            p["askedAt"] = now
+        out = self._public_game(g, me["id"])
+        out.update({"correct": correct, "correctIndex": item["correct"], "correctText": item["answers"][item["correct"]],
+                    "why": item["why"], "reward": reward, "question": self._next_question(p, q)})
+        return out
+
+    @staticmethod
+    def ore_table():
+        total = sum(o[3] for o in ORES)
+        return [{"name": n, "emoji": e, "value": v, "chance": round(w * 100 / total)} for n, e, v, w in ORES]
 
     # ----------------------------------------------------------- router
     def route(self, method, path, headers, body):
@@ -700,6 +883,20 @@ class Classroom:
                     return self.update_quiz(parts[1], token, body)
                 if method == "DELETE":
                     return self.delete_quiz(parts[1], token)
+        if parts[:1] == ["quizzes"] and len(parts) == 3 and parts[2] == "game" and method == "POST":
+            return self.start_game(parts[1], token, body)
+        if parts[:1] == ["games"] and len(parts) >= 2:
+            if method == "GET" and len(parts) == 2:
+                return self.game_status_teacher(parts[1], token)
+            if method == "POST" and len(parts) == 3 and parts[2] == "end":
+                return self.end_game(parts[1], token)
+        if parts[:1] == ["play"] and len(parts) >= 2:
+            if method == "GET" and len(parts) == 2:
+                return self.game_status(parts[1], code, student)
+            if method == "POST" and len(parts) == 3 and parts[2] == "join":
+                return self.join_game(parts[1], code, student)
+            if method == "POST" and len(parts) == 3 and parts[2] == "answer":
+                return self.game_answer(parts[1], body, code, student)
         if parts[:1] == ["quiz"] and len(parts) >= 2:
             if method == "GET" and len(parts) == 2:
                 return self.play_quiz(parts[1], code, token, student)

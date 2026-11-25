@@ -35,6 +35,7 @@ async function startTeacherQuiz(code) {
   try {
     const q = await exApi('/quiz/' + encodeURIComponent(code));
     QZ.token++; QZ.answered = true; QZ.selected = null;  // park the Kid quiz so its keys don't interfere
+    if (q.game) return startLiveGame(q);
     Object.assign(TQ, { quiz: q, i: 0, answers: [], score: 0 });
     boardReact(`display.scroll(${JSON.stringify(q.title.slice(0, 20))}, wait=False)`);
     tqShowQuestion();
@@ -116,7 +117,7 @@ async function tqFinish() {
 
 // Number keys / A-D pick an answer, Enter submits then goes on (the Kid quiz handler is parked meanwhile).
 document.addEventListener('keydown', (e) => {
-  if ($('view-quiz').hidden || !document.querySelector('.tq-ans') || e.target.closest('input, textarea, select')) return;
+  if ($('view-quiz').hidden || !document.querySelector('.tq-ans') || document.querySelector('.lg-game') || e.target.closest('input, textarea, select')) return;
   const k = '1234'.indexOf(e.key) >= 0 ? '1234'.indexOf(e.key) : 'abcd'.indexOf(e.key.toLowerCase());
   const btns = document.querySelectorAll('.tq-ans');
   if (k >= 0 && btns[k] && !TQ.answered) btns[k].click();
@@ -138,7 +139,7 @@ async function openQuizManager() {
         <div><b>${esc(q.title)}</b><div class="muted">${q.questions} questions · ${q.kids} kid${q.kids === 1 ? '' : 's'} took it · ${ago(q.created)}</div></div>
         <span class="tqm-code" title="Quiz code">${esc(q.code)}</span>
         <label class="check"><input type="checkbox" data-a="open" ${q.open ? 'checked' : ''}> Open</label>
-        <div class="tqm-btns"><button class="small" data-a="results">📊 Results</button><button class="small" data-a="edit">✏️ Edit</button><button class="small danger" data-a="del">🗑️</button></div>
+        <div class="tqm-btns">${q.liveGame ? `<button class="small primary" data-a="watch" data-game="${q.liveGame.id}">📺 LIVE: watch</button>` : '<button class="small primary" data-a="game">🎮 Live game</button>'}<button class="small" data-a="results">📊 Results</button><button class="small" data-a="edit">✏️ Edit</button><button class="small danger" data-a="del">🗑️</button></div>
       </div>`).join('') || '<p class="muted">No quizzes yet. Make your first one!</p>'}</div>
     <p class="tdlg-err" id="tqm-err"></p>`, () => {
     $('tqm-close').onclick = exClose;
@@ -148,6 +149,8 @@ async function openQuizManager() {
       const act = async () => {
         try {
           if (el.dataset.a === 'open') await exApi('/quizzes/' + id, { method: 'PATCH', body: { open: el.checked } });
+          else if (el.dataset.a === 'game') return startGameDialog(id, el.closest('.tqm-row').querySelector('b').textContent);
+          else if (el.dataset.a === 'watch') return teacherBoard(el.dataset.game);
           else if (el.dataset.a === 'results') return quizResults(id);
           else if (el.dataset.a === 'edit') return editQuiz(id);
           else if (el.dataset.a === 'del') {
@@ -249,3 +252,200 @@ document.addEventListener('click', (e) => {
   if (e.target.closest('#ext-quizzes')) { showView('quiz'); openQuizManager(); }
 });
 if (!$('view-quiz').hidden) quizStart();
+
+/* ===================================================================
+ * Live class games: the teacher starts a timed game with a quiz; kids race
+ * to answer, the server keeps score, and everyone sees the podium at the end.
+ * =================================================================== */
+const GAME_MODES = {
+  mining: { icon: '⛏️', name: 'Mining', blurb: 'Every right answer digs up an ore. Rare ores are worth more! Most valuable haul wins.' },
+  race: { icon: '🏎️', name: 'Speed race', blurb: 'Right answers score 100 points, plus up to 100 more for answering fast. Highest score wins.' },
+};
+const PODIUM_BUCKS = [50, 30, 20];
+const fmtClock = (s) => { s = Math.max(0, Math.ceil(s)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+const placeName = (n) => `${n}${n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th'}`;
+const oreBadges = (ores) => Object.entries(ores || {}).map(([n, c]) => `<span class="lg-ore" title="${esc(n)}">${(LG.ores.find((o) => o.name === n) || {}).emoji || '⛏️'}×${c}</span>`).join('');
+
+/* ----------------------------------------------- teacher: start + live board */
+function startGameDialog(quizId, title) {
+  let mode = 'mining';
+  exDialog(`<div class="tdlg-head"><h2>🎮 Live game: ${esc(title)}</h2><button id="lgs-back">← Back</button></div>
+    <p class="muted">Kids type the quiz code in the 🏆 Quiz tab and jump straight into the game. When time runs out, everyone sees the top 3.</p>
+    <div class="lg-modes">${Object.entries(GAME_MODES).map(([k, m]) => `<button class="lg-mode${k === mode ? ' on' : ''}" data-mode="${k}">
+      <span class="lg-mode-ico">${m.icon}</span><b>${m.name}</b><span>${m.blurb}</span></button>`).join('')}</div>
+    <label class="lg-mins">⏱️ How long? <select id="lgs-mins">${[1, 2, 3, 5, 10, 15, 20, 30].map((m) => `<option value="${m}" ${m === 5 ? 'selected' : ''}>${m} minute${m > 1 ? 's' : ''}</option>`).join('')}</select></label>
+    <div class="row"><button class="primary qz-go" id="lgs-start">▶ Start the game</button></div>
+    <p class="tdlg-err" id="lgs-err"></p>`, () => {
+    $('lgs-back').onclick = openQuizManager;
+    exDlg.querySelectorAll('.lg-mode').forEach((b) => (b.onclick = () => { mode = b.dataset.mode; exDlg.querySelectorAll('.lg-mode').forEach((x) => x.classList.toggle('on', x === b)); }));
+    $('lgs-start').onclick = async () => {
+      try { const g = await exApi(`/quizzes/${quizId}/game`, { method: 'POST', body: { mode, minutes: +$('lgs-mins').value } }); teacherBoard(g.id); }
+      catch (e) { exErr('lgs-err', e.message); }
+    };
+  });
+}
+
+let boardTimer = null;
+async function teacherBoard(gameId) {
+  clearInterval(boardTimer);
+  let quizCode = '';
+  try { quizCode = (await exApi('/quizzes')).quizzes.find((q) => q.liveGame?.id === gameId)?.code || ''; } catch {}
+  let g = null, endsAt = 0;
+  const draw = () => {
+    if (!g || exDlg.hidden || !$('lgb')) { clearInterval(boardTimer); return; }
+    const m = GAME_MODES[g.mode];
+    if (g.ended) { $('lgb').innerHTML = podiumHTML(g, null) + `<div class="row"><button class="primary" id="lgb-close">Done</button></div>`; $('lgb-close').onclick = openQuizManager; clearInterval(boardTimer); return; }
+    $('lgb').innerHTML = `
+      <div class="lgb-top"><div><div class="lgb-mode">${m.icon} ${m.name} · ${esc(g.title)}</div>
+        <div class="lgb-join">Join with quiz code <b>${esc(quizCode)}</b> in the 🏆 Quiz tab</div></div>
+        <div class="lg-clock ${endsAt - Date.now() < 30000 ? 'hurry' : ''}">${fmtClock((endsAt - Date.now()) / 1000)}</div></div>
+      <p class="muted">${g.players} player${g.players === 1 ? '' : 's'}</p>
+      <ol class="lgb-list">${g.top.map((p) => `<li class="${p.place <= 3 ? 'medal' + p.place : ''}"><span class="lgb-place">${p.place <= 3 ? ['🥇', '🥈', '🥉'][p.place - 1] : p.place}</span>
+        <b>${esc(p.name)}</b>${g.mode === 'mining' ? `<span class="lgb-ores">${oreBadges(p.ores)}</span>` : `<span class="muted">${p.correct} right</span>`}<span class="lgb-score">${p.score}</span></li>`).join('') || '<li class="muted">Waiting for players…</li>'}</ol>
+      <div class="row"><button class="danger" id="lgb-end">⏹ End the game now</button><button id="lgb-back">← Quizzes</button></div>`;
+    $('lgb-end').onclick = async () => { if (!confirm('End the game now and show the winners?')) return; g = await exApi(`/games/${gameId}/end`, { method: 'POST' }); draw(); };
+    $('lgb-back').onclick = () => { clearInterval(boardTimer); openQuizManager(); };
+  };
+  const poll = async () => {
+    try { g = await exApi('/games/' + gameId); endsAt = Date.now() + g.secondsLeft * 1000; if (g.ores) LG.ores = g.ores; } catch (e) { if ($('lgb')) $('lgb').innerHTML = `<p class="tdlg-err">${esc(e.message)}</p>`; clearInterval(boardTimer); return; }
+    draw();
+  };
+  exDialog(`<div id="lgb" class="lgb"><p class="muted">Loading the game…</p></div>`);
+  exDlg.querySelector('.tdlg').classList.add('lg-wide');
+  await poll();
+  let n = 0;
+  boardTimer = setInterval(() => { if (++n % 4 === 0) poll(); else draw(); }, 500);
+}
+
+/* ------------------------------------------------------- kids: playing */
+const LG = { game: null, question: null, selected: null, busy: false, endsAt: 0, timer: null, ores: [], me: null, flash: '', quizCode: '' };
+
+async function startLiveGame(q) {
+  LG.ores = q.ores || []; LG.quizCode = q.code;
+  try {
+    const j = await exApi(`/play/${q.game.id}/join`, { method: 'POST', body: {} });
+    applyGame(j); LG.question = j.question || null;
+    if (j.ended) return gameOver();
+    renderGame();
+    clearInterval(LG.timer);
+    let n = 0;
+    LG.timer = setInterval(async () => {
+      if (!document.querySelector('.lg-game')) { clearInterval(LG.timer); return; }
+      drawClock();
+      if (++n % 4 === 0) {
+        try { const st = await exApi(`/play/${LG.game.id}`); applyGame(st); if (st.ended) return gameOver(); drawBoard(); } catch {}
+      }
+      if (LG.endsAt && Date.now() > LG.endsAt + 1500) { try { const st = await exApi(`/play/${LG.game.id}`); applyGame(st); if (st.ended) gameOver(); } catch {} }
+    }, 500);
+  } catch (e) { const el = $('tq-err'); if (el) el.textContent = e.message; }
+}
+function applyGame(g) { LG.game = g; LG.endsAt = Date.now() + g.secondsLeft * 1000; if (g.me) LG.me = g.me; if (g.ores) LG.ores = g.ores; }
+
+function renderGame() {
+  const m = GAME_MODES[LG.game.mode];
+  $('quiz-main').innerHTML = `<div class="lg-game qz-card">
+    <div class="lg-head"><span class="lg-title">${m.icon} ${m.name}: ${esc(LG.game.title)}</span><span class="lg-clock" id="lg-clock"></span></div>
+    <div class="lg-grid">
+      <div class="lg-left">
+        ${LG.game.mode === 'mining' ? `<div class="lg-mine"><div class="lg-cave" id="lg-cave"><span class="lg-pick">⛏️</span><div id="lg-find" class="lg-find"></div></div>
+          <div class="lg-bag" id="lg-bag"></div><div class="lg-legend">${LG.ores.map((o) => `<span>${o.emoji} ${o.value}</span>`).join('')}</div></div>`
+        : `<div class="lg-mine"><div class="lg-track"><span class="lg-car" id="lg-car">🏎️</span><span class="lg-flag">🏁</span></div><div id="lg-find" class="lg-find race"></div></div>`}
+        <div id="lg-q"></div>
+      </div>
+      <aside class="lg-side"><div class="lg-me" id="lg-me"></div><h3>🏆 Leaderboard</h3><ol class="lgb-list small" id="lg-board"></ol></aside>
+    </div></div>`;
+  drawQuestion(); drawBoard(); drawClock();
+}
+function drawClock() {
+  const el = $('lg-clock'); if (!el) return;
+  const left = (LG.endsAt - Date.now()) / 1000;
+  el.textContent = '⏱️ ' + fmtClock(left); el.classList.toggle('hurry', left < 30);
+}
+function drawBoard() {
+  const g = LG.game, me = LG.me;
+  if ($('lg-me')) $('lg-me').innerHTML = me ? `<div class="lg-me-score">${me.score}</div><div>${LG.game.mode === 'mining' ? 'ore value' : 'points'} · <b>${placeName(me.place)}</b> of ${g.players}</div>` : '';
+  if ($('lg-bag') && me) $('lg-bag').innerHTML = oreBadges(me.ores) || '<span class="muted">Your bag is empty. Answer to dig!</span>';
+  if ($('lg-car') && me && g.top.length) { const best = Math.max(1, g.top[0].score); $('lg-car').style.left = `${Math.min(88, (me.score / best) * 88)}%`; }
+  if ($('lg-board')) $('lg-board').innerHTML = g.top.slice(0, 8).map((p) => `<li class="${p.id === me?.id ? 'me' : ''}"><span class="lgb-place">${p.place <= 3 ? ['🥇', '🥈', '🥉'][p.place - 1] : p.place}</span><b>${esc(p.name)}</b><span class="lgb-score">${p.score}</span></li>`).join('');
+}
+function drawQuestion() {
+  const q = LG.question, box = $('lg-q'); if (!box) return;
+  LG.selected = null;
+  box.innerHTML = `<h2 class="qz-q">${esc(q.q)}</h2>
+    <div class="qz-answers">${q.answers.map((a, k) => `<button class="qz-ans lg-ans c${k}" data-k="${k}"><span class="qz-key">${'ABCD'[k]}</span>${esc(a)}</button>`).join('')}</div>
+    <div class="qz-submit-row"><span class="muted" id="lg-hint">Pick an answer, then Submit (or press Enter).</span><button class="primary qz-submit" id="lg-submit" disabled>${LG.game.mode === 'mining' ? '⛏️ Dig!' : '🏁 Go!'}</button></div>`;
+  box.querySelectorAll('.lg-ans').forEach((b) => (b.onclick = () => {
+    if (LG.busy) return; LG.selected = +b.dataset.k;
+    box.querySelectorAll('.lg-ans').forEach((x) => x.classList.toggle('sel', x === b)); $('lg-submit').disabled = false;
+  }));
+  $('lg-submit').onclick = submitGameAnswer;
+}
+async function submitGameAnswer() {
+  if (LG.busy || LG.selected === null) return;
+  LG.busy = true; $('lg-submit').disabled = true;
+  let r;
+  try { r = await exApi(`/play/${LG.game.id}/answer`, { method: 'POST', body: { i: LG.question.i, choice: LG.selected } }); }
+  catch (e) {
+    LG.busy = false; $('lg-submit').disabled = false; $('lg-hint').textContent = e.message;
+    if (/time's up|ended/.test(e.message)) { try { applyGame(await exApi(`/play/${LG.game.id}`)); } catch {} gameOver(); }
+    return;
+  }
+  applyGame(r);
+  document.querySelectorAll('.lg-ans').forEach((b) => { b.disabled = true; if (+b.dataset.k === r.correctIndex) b.classList.add('right'); else if (+b.dataset.k === LG.selected) b.classList.add('wrong'); });
+  const find = $('lg-find');
+  if (r.correct && r.reward?.ore) {
+    find.innerHTML = `<span class="lg-pop">${r.reward.emoji}</span><b>${r.reward.ore}! +${r.reward.value}</b>`;
+    $('lg-cave')?.classList.remove('dig'); void $('lg-cave')?.offsetWidth; $('lg-cave')?.classList.add('dig');
+    boardReact(r.reward.value >= 25 ? 'display.show(Image.DIAMOND)' : 'display.show(Image.YES)');
+  } else if (r.correct) {
+    find.innerHTML = `<b>+${r.reward.points}</b>${r.reward.bonus ? ` <span class="muted">(${r.reward.bonus} speed bonus!)</span>` : ''}`;
+    boardReact('display.show(Image.ARROW_E)');
+  } else {
+    find.innerHTML = `<b class="bad-t">${LG.game.mode === 'mining' ? '💥 Your pickaxe slipped!' : '🐢 No points'}</b> <span class="muted">It was: ${esc(r.correctText)}</span>`;
+    boardReact('display.show(Image.NO)');
+  }
+  drawBoard();
+  setTimeout(() => {
+    LG.busy = false;
+    if (LG.game.ended) return gameOver();
+    LG.question = r.question; if (document.querySelector('.lg-game')) drawQuestion();
+  }, r.correct ? 900 : 1600);
+}
+document.addEventListener('keydown', (e) => {
+  if ($('view-quiz').hidden || !document.querySelector('.lg-game') || e.target.closest('input, textarea, select')) return;
+  const k = '1234'.indexOf(e.key) >= 0 ? '1234'.indexOf(e.key) : 'abcd'.indexOf(e.key.toLowerCase());
+  const btns = document.querySelectorAll('.lg-ans');
+  if (k >= 0 && btns[k] && !LG.busy) btns[k].click();
+  if (e.key === 'Enter' && LG.selected !== null && !LG.busy) { e.preventDefault(); submitGameAnswer(); }
+});
+
+/* ------------------------------------------------------- end: podium */
+function podiumHTML(g, me) {
+  const top = g.top.slice(0, 3);
+  const m = GAME_MODES[g.mode];
+  const block = (p, n) => p ? `<div class="pod pod${n}"><div class="pod-name">${['🥇', '🥈', '🥉'][p.place - 1] || ''} ${esc(p.name)}</div><div class="pod-score">${p.score}</div>
+    ${g.mode === 'mining' ? `<div class="pod-ores">${oreBadges(p.ores)}</div>` : ''}<div class="pod-step">${placeName(p.place)}</div></div>` : `<div class="pod pod${n} empty"><div class="pod-step">–</div></div>`;
+  return `<h2 class="lg-over">⏰ Time's up! ${m.icon} ${m.name} results</h2>
+    <div class="podium">${block(top[1], 2)}${block(top[0], 1)}${block(top[2], 3)}</div>
+    ${me ? `<p class="lg-you">You placed <b>${placeName(me.place)}</b> out of ${g.players} with <b>${me.score}</b> ${g.mode === 'mining' ? 'ore value' : 'points'}${me.place <= 3 ? ' 🎉' : ''}.</p>` : `<p class="muted">${g.players} player${g.players === 1 ? '' : 's'} took part.</p>`}`;
+}
+function gameOver() {
+  clearInterval(LG.timer);
+  const g = LG.game, me = g.me || LG.me;
+  let pay = '';
+  if (me) {
+    let paid = []; try { paid = JSON.parse(localStorage.getItem('microbit-paid-games') || '[]'); } catch {}
+    const key = `${g.id}:${me.id}`;
+    if (!paid.includes(key)) {
+      const amount = me.correct * 10 + (me.place <= 3 ? PODIUM_BUCKS[me.place - 1] : 0);
+      HS.bucks += amount; saveHS();
+      paid = [...paid, key].slice(-50); try { localStorage.setItem('microbit-paid-games', JSON.stringify(paid)); } catch {}
+      pay = `<p class="qz-pay">🪙 You earned <b>${amount} Bit Bucks</b> (${me.correct} right answers${me.place <= 3 ? ` + ${PODIUM_BUCKS[me.place - 1]} podium bonus` : ''}). You now have ${HS.bucks}.</p>`;
+    }
+    boardReact(me.place === 1 ? "display.show(Image.HAPPY)\nsleep(500)\ndisplay.scroll('1st!', wait=False)" : `display.scroll('#${me.place}', wait=False)`);
+  }
+  $('quiz-main').innerHTML = `<div class="qz-card qz-results lg-results">${podiumHTML(g, me)}${pay}
+    <div class="row qz-end"><button class="primary" id="lg-home">🏠 Back to quiz start</button></div></div>`;
+  $('lg-home').onclick = quizStart;
+  if (me && me.place <= 3) confetti();
+}
