@@ -16,8 +16,8 @@ A local web app for the BBC micro:bit v1 that runs on your own computer. It conn
 Also:
 - 🤖 **Bit, the coding helper** (Blocks and Manager tabs). Bit checks blocks or Python for common mistakes, explains micro:bit error messages, answers "how do I…?" questions and can add example blocks or code. Bit works offline.
 - 👗 **Outfits** (43) dress Bit up. Kid quizzes win the original 22, teacher quizzes the other 21. The better the score, the better the prize (0% gets a junk item, starting with a trash can).
-- 🎨 **Looks**: change Bit's body colour, eyes, glow colour, mouth and antenna (all free).
-- 🪙 **Bit Bucks and the 🛒 Shop** (open with **🤖 Bit** in the top bar): start with 100 Bit Bucks and earn more from quizzes (5 per right answer on a Kid quiz, 10 on a teacher quiz, plus a perfect-score bonus). Buy any outfit (10 to 300 by tier) or sell one back for half price.
+- 🎨 **Looks**: change Bit's body colour, eyes, glow colour, mouth and antenna. The starter look is free; the other 35 looks are unlocked as a bonus prize from quizzes (a look of the same tier as the outfit prize) or bought in the shop.
+- 🪙 **Bit Bucks and the 🛒 Shop** (open with **🤖 Bit** in the top bar): start with 100 Bit Bucks and earn more from quizzes (5 per right answer on a Kid quiz, 10 on a teacher quiz, plus a perfect-score bonus). Buy any outfit or look (10 to 300 by tier) or sell an outfit back for half price.
 - 🔍 **Search** across every lesson, part, Tour step and quiz question. Press `/` to jump to it.
 - 👩‍🏫 **Parent / teacher code**. A grown-up creates their own code, which unlocks quiz answers in search and opens an answer key.
 - 🔑 **Kid accounts** (Explorer). Each kid unlocks their account with a 4–6 digit PIN on a number pad, and locks it when done (it also auto-locks after 30 minutes idle, or when the browser closes). **Making a new account needs the teacher password.** 5 wrong PINs block the account for a minute. The teacher can reset PINs, rename or delete accounts.

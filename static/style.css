@@ -575,3 +575,12 @@ button.danger { color: var(--bad); }
   .wr-left, .wr-right { overflow: visible; }
   .wr-left { padding: 14px; }
 }
+
+/* locked looks */
+.lk-sw.locked { opacity: .45; font-size: 13px; display: grid; place-items: center; }
+.lk-sw.static { display: inline-block; width: 40px; height: 40px; border-radius: 50%; box-shadow: 0 0 0 1px var(--line); }
+.lk-face { position: relative; }
+.lk-face.locked .bot { opacity: .4; filter: grayscale(.6); }
+.lk-lock { font-size: 10.5px; font-weight: 800; color: #b78100; }
+.shop-item .lk-mini { width: 54px; }
+.qz-look { margin: 6px 0 8px; padding: 6px 10px; border-radius: 8px; background: color-mix(in srgb, var(--accent) 10%, var(--card)); }

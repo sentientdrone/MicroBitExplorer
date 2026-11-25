@@ -34,6 +34,7 @@ PIN_TRIES, PIN_LOCKOUT_SECONDS = 5, 60
 BIT_SLOTS = {"head", "face", "neck", "hand", "ride", "back", "aura"}
 BIT_LOOK_KEYS = {"body", "glow", "eyes", "mouth", "antenna"}
 ITEM_ID = re.compile(r"^[a-z0-9_]{1,30}$")
+LOOK_ID = re.compile(r"^(body|glow|eyes|mouth|antenna):[A-Za-z]{1,20}$")
 MAX_BUCKS = 1_000_000
 CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # no 0/O/1/I mix-ups when read off a board
 
@@ -439,10 +440,14 @@ class Classroom:
         equipped = {k: v for k, v in (p.get("equipped") or {}).items()
                     if k in BIT_SLOTS and isinstance(v, str) and v in owned}
         look = {k: str(v)[:20] for k, v in (p.get("look") or {}).items() if k in BIT_LOOK_KEYS}
+        owned_looks = []
+        for x in p.get("ownedLooks") or []:
+            if isinstance(x, str) and LOOK_ID.match(x) and x not in owned_looks:
+                owned_looks.append(x)
         bucks = p.get("bucks")
         bucks = max(0, min(MAX_BUCKS, int(bucks))) if isinstance(bucks, (int, float)) else 100
         return {"name": (str(p.get("name") or "Bit").strip() or "Bit")[:20], "owned": owned[:200],
-                "equipped": equipped, "look": look, "bucks": bucks, "saved": time.time()}
+                "equipped": equipped, "look": look, "ownedLooks": owned_looks[:100], "bucks": bucks, "saved": time.time()}
 
     def get_profile(self, student_token):
         me = self.me(student_token)

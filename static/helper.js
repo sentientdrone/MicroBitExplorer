@@ -85,14 +85,22 @@ const SLOT_NAMES = { head: 'Head', face: 'Face', neck: 'Neck', hand: 'Hand', rid
 // Whose Bit is loaded: this computer's own Bit (saved in the browser), or, while a kid's
 // account is unlocked in the Explorer, that kid's Bit (saved on their account on the class server).
 const HELPER_KEY = 'microbit-helper';
-const freshBit = () => ({ name: 'Bit', owned: [], equipped: {}, bucks: 100 });  // everyone starts with 100 Bit Bucks
-function loadComputerBit() {
-  let b = freshBit();
-  try { b = { ...b, ...JSON.parse(localStorage.getItem(HELPER_KEY) || '{}') }; } catch {}
-  if (typeof b.bucks !== 'number') b.bucks = 100;  // older saves: give the starting money
+const freshBit = () => ({ name: 'Bit', owned: [], equipped: {}, bucks: 100, ownedLooks: [] });  // everyone starts with 100 Bit Bucks
+// Bits saved before looks could be locked: keep whatever look they already use unlocked.
+function ensureLooks(b) {
+  if (!Array.isArray(b.ownedLooks)) {
+    b.ownedLooks = Object.entries({ ...DEFAULT_LOOK, ...(b.look || {}) }).filter(([k, v]) => lookTier(k, v) !== 'free').map(([k, v]) => lookId(k, v));
+  }
   return b;
 }
-let HS = loadComputerBit();
+function loadComputerBit() {
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(HELPER_KEY) || '{}') || {}; } catch {}
+  const b = { ...freshBit(), ...saved, ownedLooks: saved.ownedLooks };  // keep "no list yet" visible to ensureLooks
+  if (typeof b.bucks !== 'number') b.bucks = 100;  // older saves: give the starting money
+  return ensureLooks(b);
+}
+let HS = freshBit();  // the saved Bit is loaded once the looks below are defined
 let bitOwner = null;          // { id, name } of the kid whose Bit is loaded, or null for this computer's Bit
 let bitSync = '';             // '', 'loading', 'saved', 'offline'
 function saveHS() {
@@ -130,7 +138,7 @@ async function onAccountChange(me) {
   try {
     const j = await exApi('/me/profile');
     if (bitOwner?.id !== me.id) return;
-    if (j.profile) { HS = { ...freshBit(), ...j.profile }; bitSync = 'saved'; }
+    if (j.profile) { HS = ensureLooks({ ...freshBit(), ...j.profile, ownedLooks: j.profile.ownedLooks }); bitSync = 'saved'; }
     else { HS = freshBit(); saveKidBit(); }  // first time: a brand-new Bit with 100 Bit Bucks
   } catch { if (bitOwner?.id === me.id) bitSync = 'offline'; }
   refreshBitViews();
@@ -173,6 +181,41 @@ const LOOKS = {
   antenna: [['ball', 'Ball'], ['heart', 'Heart'], ['star', 'Star'], ['bolt', 'Bolt'], ['double', 'Double'], ['none', 'None']],
 };
 const DEFAULT_LOOK = { body: 'Blue', glow: 'Green', eyes: 'round', mouth: 'smile', antenna: 'ball' };
+// The starter look is free; everything else is unlocked from quizzes or bought in the shop.
+const LOOK_TIERS = {
+  body: { Blue: 'free', Red: 'common', Green: 'common', Yellow: 'common', Purple: 'cool', Orange: 'cool', Pink: 'cool', Teal: 'cool',
+    Silver: 'epic', Black: 'epic', Gold: 'legendary', White: 'legendary' },
+  glow: { Green: 'free', Cyan: 'common', Yellow: 'common', Pink: 'cool', Red: 'cool', Orange: 'cool', White: 'epic', Purple: 'epic' },
+  eyes: { round: 'free', square: 'common', happy: 'common', sleepy: 'cool', wink: 'cool', big: 'epic', stars: 'epic', hearts: 'legendary' },
+  mouth: { smile: 'free', flat: 'common', o: 'common', grin: 'cool', tongue: 'epic', robot: 'legendary' },
+  antenna: { ball: 'free', none: 'common', double: 'cool', star: 'epic', heart: 'epic', bolt: 'legendary' },
+};
+const LOOK_PART = { body: 'body colour', glow: 'glow colour', eyes: 'eyes', mouth: 'mouth', antenna: 'antenna' };
+const lookId = (k, v) => `${k}:${v}`;
+const lookTier = (k, v) => LOOK_TIERS[k]?.[v] || 'common';
+const hasLook = (k, v) => lookTier(k, v) === 'free' || (HS.ownedLooks || []).includes(lookId(k, v));
+const lookName = (k, v) => `${(LOOKS[k].find((o) => o[0] === v) || [v, v])[k === 'body' || k === 'glow' ? 0 : 1]} ${LOOK_PART[k]}`;
+const allLooks = () => Object.entries(LOOK_TIERS).flatMap(([k, opts]) => Object.keys(opts).map((v) => [k, v]));
+function lookPreviewHTML(k, v) {
+  if (k === 'body' || k === 'glow') {
+    const c = LOOKS[k].find(([n]) => n === v)?.[1] || '#ccc';
+    return `<span class="lk-sw static" style="background:${c}"></span>`;
+  }
+  return botSVG({}, 'lk-mini', { ...look(), [k]: v });
+}
+HS = loadComputerBit();  // now that LOOK_TIERS exists, load this computer's saved Bit
+
+function buyLook(k, v) {
+  const price = PRICES[lookTier(k, v)];
+  if (hasLook(k, v)) return true;
+  if (HS.bucks < price) {
+    alert(`The ${lookName(k, v)} costs ${price} Bit Bucks and you have ${HS.bucks}. Win it in a quiz, or earn more Bit Bucks!`);
+    return false;
+  }
+  if (!confirm(`Buy the ${lookName(k, v)} for ${price} Bit Bucks?`)) return false;
+  HS.bucks -= price; HS.ownedLooks = [...(HS.ownedLooks || []), lookId(k, v)];
+  return true;
+}
 const look = (l = HS.look) => ({ ...DEFAULT_LOOK, ...(l || {}) });
 
 function eyesSVG(style) {
@@ -526,7 +569,7 @@ function ask(q) {
     if (/^(hi|hello|hey)\b/i.test(q)) return say(`Hello! 👋 Ask me “how do I make a dice?” or press <b>Check my code</b> if something isn't working.`);
     if (/(who are you|your name)/i.test(q)) return say(`I'm <b>${esc(HS.name)}</b>, your coding helper! Win accessories in the 🏆 Quiz to dress me up.`);
     if (/\b(accessor\w*|hats?|dress(es)?|dress up|wardrobe|outfits?|costumes?|crown|trash can)\b/i.test(q)) return say('Win accessories by finishing the 🏆 <b>Quiz</b>. The better your score, the better the prize! Then press <b>👗 Dress up</b>.',
-      { actions: [['👗 Dress up', openWardrobe, true], ['🏆 Take the quiz', () => showView('quiz')]] });
+      { actions: [['👗 Dress up', () => openWardrobe(), true], ['🏆 Take the quiz', () => showView('quiz')]] });
     const r = matchRecipe(q);
     const found = search(q).filter((e) => e.kind !== 'Quiz answer').slice(0, 2);
     if (r) {
@@ -606,23 +649,27 @@ function renderWardrobe() {
 
 function renderLooks() {
   const lk = look();
-  const row = (key, title, opts, swatch) => `<div class="lk-row"><h4>${title}</h4><div class="lk-opts">${opts.map(([v, label, c]) => {
-    const val = swatch ? v : v, on = lk[key] === val;
-    return swatch
-      ? `<button class="lk-sw${on ? ' on' : ''}" data-k="${key}" data-v="${esc(val)}" title="${esc(v)}" style="background:${label}"></button>`
-      : `<button class="lk-opt${on ? ' on' : ''}" data-k="${key}" data-v="${esc(val)}">${c || ''}${esc(label)}</button>`;
-  }).join('')}</div></div>`;
-  const mini = (k, v) => botSVG({}, 'lk-mini', { ...lk, [k]: v });
-  $('wr-looks').innerHTML = `<p class="muted">Change how ${esc(HS.name)} looks. Every option is free!</p>
-    ${row('body', '🎨 Body colour', LOOKS.body.map(([n, c]) => [n, c]), true)}
-    ${row('glow', '✨ Eyes &amp; mouth glow', LOOKS.glow.map(([n, c]) => [n, c]), true)}
-    <div class="lk-row"><h4>👀 Eyes</h4><div class="lk-opts">${LOOKS.eyes.map(([v, l]) => `<button class="lk-face${lk.eyes === v ? ' on' : ''}" data-k="eyes" data-v="${v}">${mini('eyes', v)}<span>${l}</span></button>`).join('')}</div></div>
-    <div class="lk-row"><h4>👄 Mouth</h4><div class="lk-opts">${LOOKS.mouth.map(([v, l]) => `<button class="lk-face${lk.mouth === v ? ' on' : ''}" data-k="mouth" data-v="${v}">${mini('mouth', v)}<span>${l}</span></button>`).join('')}</div></div>
-    <div class="lk-row"><h4>📡 Antenna</h4><div class="lk-opts">${LOOKS.antenna.map(([v, l]) => `<button class="lk-face${lk.antenna === v ? ' on' : ''}" data-k="antenna" data-v="${v}">${mini('antenna', v)}<span>${l}</span></button>`).join('')}</div></div>
+  const lockTag = (k, v) => (hasLook(k, v) ? '' : `<span class="lk-lock">🔒 ${PRICES[lookTier(k, v)]}</span>`);
+  const swatches = (key, title) => `<div class="lk-row"><h4>${title}</h4><div class="lk-opts">${LOOKS[key].map(([n, c]) =>
+    `<button class="lk-sw${lk[key] === n ? ' on' : ''}${hasLook(key, n) ? '' : ' locked'}" data-k="${key}" data-v="${esc(n)}"
+      title="${esc(n)}${hasLook(key, n) ? '' : ` (🔒 ${PRICES[lookTier(key, n)]} Bit Bucks)`}" style="background:${c}">${hasLook(key, n) ? '' : '🔒'}</button>`).join('')}</div></div>`;
+  const faces = (key, title) => `<div class="lk-row"><h4>${title}</h4><div class="lk-opts">${LOOKS[key].map(([v, l]) =>
+    `<button class="lk-face${lk[key] === v ? ' on' : ''}${hasLook(key, v) ? '' : ' locked'}" data-k="${key}" data-v="${v}">
+      ${botSVG({}, 'lk-mini', { ...lk, [key]: v })}<span>${l}</span>${lockTag(key, v)}</button>`).join('')}</div></div>`;
+  const owned = allLooks().filter(([k, v]) => hasLook(k, v)).length;
+  $('wr-looks').innerHTML = `<p class="muted">Change how ${esc(HS.name)} looks. You've unlocked <b>${owned} of ${allLooks().length}</b> looks.
+      🔒 looks come from quiz prizes, or buy them with Bit Bucks.</p>
+    ${swatches('body', '🎨 Body colour')}${swatches('glow', '✨ Eyes &amp; mouth glow')}
+    ${faces('eyes', '👀 Eyes')}${faces('mouth', '👄 Mouth')}${faces('antenna', '📡 Antenna')}
     <div class="row"><button id="lk-random">🎲 Surprise me</button><button id="lk-reset">↺ Original look</button></div>`;
-  $('wr-looks').querySelectorAll('[data-k]').forEach((b) => (b.onclick = () => { HS.look = { ...look(), [b.dataset.k]: b.dataset.v }; saveHS(); renderWardrobe(); if (!hPanel.hidden) renderHelperTop(); }));
-  const pickAny = (arr) => arr[Math.floor(Math.random() * arr.length)][0];
-  $('lk-random').onclick = () => { HS.look = { body: pickAny(LOOKS.body), glow: pickAny(LOOKS.glow), eyes: pickAny(LOOKS.eyes), mouth: pickAny(LOOKS.mouth), antenna: pickAny(LOOKS.antenna) }; saveHS(); renderWardrobe(); if (!hPanel.hidden) renderHelperTop(); };
+  const apply = (k, v) => { HS.look = { ...look(), [k]: v }; saveHS(); renderWardrobe(); if (!hPanel.hidden) renderHelperTop(); };
+  $('wr-looks').querySelectorAll('[data-k]').forEach((b) => (b.onclick = () => {
+    const k = b.dataset.k, v = b.dataset.v;
+    if (!hasLook(k, v) && !buyLook(k, v)) return;
+    apply(k, v);
+  }));
+  const pickOwned = (k) => { const opts = LOOKS[k].map((o) => o[0]).filter((v) => hasLook(k, v)); return opts[Math.floor(Math.random() * opts.length)]; };
+  $('lk-random').onclick = () => { HS.look = Object.fromEntries(Object.keys(LOOK_TIERS).map((k) => [k, pickOwned(k)])); saveHS(); renderWardrobe(); if (!hPanel.hidden) renderHelperTop(); };
   $('lk-reset').onclick = () => { HS.look = { ...DEFAULT_LOOK }; saveHS(); renderWardrobe(); if (!hPanel.hidden) renderHelperTop(); };
 }
 
@@ -633,6 +680,7 @@ function renderShop() {
   const mine = all.filter(([id]) => HS.owned.includes(id));
   const order = Object.keys(TIERS);
   const byTier = (a, b) => order.indexOf(a[1].tier) - order.indexOf(b[1].tier);
+  const lockedLooks = allLooks().filter(([k, v]) => !hasLook(k, v)).sort((a, b) => order.indexOf(lookTier(...a)) - order.indexOf(lookTier(...b)));
   const card = ([id, it], mode) => {
     const t = TIERS[it.tier], price = mode === 'buy' ? PRICES[it.tier] : sellPrice(it);
     const can = mode === 'sell' || HS.bucks >= price;
@@ -644,12 +692,24 @@ function renderShop() {
       <span class="muted">Earn more: 5 per right answer on a Kid quiz, 10 on a teacher quiz, plus a bonus for a perfect score.</span></div>
     ${shopMsg ? `<p class="shop-msg">${shopMsg}</p>` : ''}
     <h3 class="wr-pool">🛍️ Buy</h3>${forSale.length ? `<div class="shop-grid">${forSale.sort(byTier).map((x) => card(x, 'buy')).join('')}</div>` : '<p class="muted">You own every outfit! 🎉</p>'}
+    <h3 class="wr-pool">🎨 Looks</h3>${lockedLooks.length ? `<div class="shop-grid">${lockedLooks.map(([k, v]) => {
+      const t = TIERS[lookTier(k, v)], price = PRICES[lookTier(k, v)];
+      return `<div class="shop-item" style="--tc:${t.color}">${lookPreviewHTML(k, v)}<span class="wr-name">${esc(lookName(k, v))}</span>
+        <span class="wr-slot">${t.name} · look</span><button class="small primary" data-buylook="${k}:${esc(v)}" ${HS.bucks >= price ? '' : 'disabled'}>Buy ${BB(price)}</button></div>`;
+    }).join('')}</div>` : '<p class="muted">You\'ve unlocked every look! 🎉</p>'}
     <h3 class="wr-pool">💰 Sell <span class="muted">(for half price)</span></h3>${mine.length ? `<div class="shop-grid">${mine.sort(byTier).map((x) => card(x, 'sell')).join('')}</div>` : '<p class="muted">Nothing to sell yet.</p>'}`;
   $('wr-shop').querySelectorAll('[data-buy]').forEach((b) => (b.onclick = () => {
     const id = b.dataset.buy, it = ITEMS[id], price = PRICES[it.tier];
     if (HS.bucks < price || HS.owned.includes(id)) return;
     HS.bucks -= price; HS.owned.push(id); saveHS();
     shopMsg = `🛍️ You bought the <b>${esc(it.name)}</b> ${it.icon}! Find it in 👗 Outfits.`;
+    renderWardrobe(); if (!hPanel.hidden) renderHelperTop();
+  }));
+  $('wr-shop').querySelectorAll('[data-buylook]').forEach((b) => (b.onclick = () => {
+    const [k, v] = b.dataset.buylook.split(':'), price = PRICES[lookTier(k, v)];
+    if (HS.bucks < price || hasLook(k, v)) return;
+    HS.bucks -= price; HS.ownedLooks = [...(HS.ownedLooks || []), lookId(k, v)]; saveHS();
+    shopMsg = `🎨 You unlocked the <b>${esc(lookName(k, v))}</b>! Try it in 🎨 Looks.`;
     renderWardrobe(); if (!hPanel.hidden) renderHelperTop();
   }));
   $('wr-shop').querySelectorAll('[data-sell]').forEach((b) => (b.onclick = () => {
@@ -665,6 +725,21 @@ function renderShop() {
 
 /* ================================================ quiz reward hook */
 // Called by the quiz results screen. Gives one accessory from the tier the score earned.
+// A bonus look of the same tier (or a lower one if you own them all). 0% scores don't get one.
+function awardLook(tier) {
+  const order = ['common', 'cool', 'epic', 'legendary'];
+  if (!order.includes(tier)) return null;
+  for (let i = order.indexOf(tier); i >= 0; i--) {
+    const opts = allLooks().filter(([k, v]) => lookTier(k, v) === order[i] && !hasLook(k, v));
+    if (opts.length) {
+      const [k, v] = opts[Math.floor(Math.random() * opts.length)];
+      HS.ownedLooks = [...(HS.ownedLooks || []), lookId(k, v)];
+      return { k, v, name: lookName(k, v), tier: order[i] };
+    }
+  }
+  return null;
+}
+
 function awardAccessory(pct, prizePool = 'kid') {
   const order = ['junk', 'common', 'cool', 'epic', 'legendary'];
   const tier = tierFor(pct);
@@ -673,19 +748,23 @@ function awardAccessory(pct, prizePool = 'kid') {
   if (!pool.length && tier !== 'junk') {  // already own that whole tier: fall back to a lower (non-junk) tier
     for (let i = order.indexOf(tier) - 1; i >= 1 && !pool.length; i--) pool = avail(order[i]);
   }
-  if (!pool.length) return { tier, pool: prizePool, item: null };
+  if (!pool.length) { const newLook = awardLook(tier); saveHS(); return { tier, pool: prizePool, item: null, look: newLook }; }
   // A 0% score always gives the trash can first
   const [id, item] = pool.find(([pid]) => pid === 'trash') || pool[Math.floor(Math.random() * pool.length)];
-  HS.owned.push(id); saveHS();
-  return { tier, pool: prizePool, id, item };
+  HS.owned.push(id);
+  const newLook = awardLook(tier);
+  saveHS();
+  return { tier, pool: prizePool, id, item, look: newLook };
 }
 
 function rewardHTML(r, pct) {
   const t = TIERS[r.tier];
-  if (!r.item) return `<div class="qz-reward"><b>🎁 You already own every ${t.name} accessory!</b><p class="muted">Score higher to win something even better.</p></div>`;
+  const lookLine = r.look ? `<p class="qz-look">🎨 <b>Bonus look unlocked:</b> ${esc(r.look.name)}! <button class="small" id="qz-uselook">Use it</button></p>` : '';
+  if (!r.item) return `<div class="qz-reward"><b>🎁 You already own every ${t.name} outfit!</b><p class="muted">Score higher to win something even better.</p>${lookLine}</div>`;
   const preview = { ...HS.equipped, [r.item.slot]: r.id };
+  const previewLook = r.look ? { ...look(), [r.look.k]: r.look.v } : look();
   return `<div class="qz-reward" style="--tc:${t.color}">
-    <div class="qz-reward-bot">${botSVG(preview, 'small')}</div>
+    <div class="qz-reward-bot">${botSVG(preview, 'small', previewLook)}</div>
     <div><div class="qz-reward-tier">${t.name} prize · ${r.pool === 'teacher' ? 'teacher quiz' : 'Kid quiz'}</div><h3>🎁 ${HS.name} won: ${r.item.icon} ${r.item.name}!</h3>
       <p>${{
         junk: r.id === 'trash' ? 'Zero points… so it\'s the trash can for you! 😄 Try again to win something nicer.' : 'Zero points… more junk! 😄 Get some answers right for a better prize.',
@@ -693,22 +772,26 @@ function rewardHTML(r, pct) {
         cool: 'Nice work! Score 80% or more for an Epic prize.',
         epic: 'Amazing! Get a perfect score for a Legendary prize.',
         legendary: 'PERFECT! A Legendary prize for a micro:bit expert! 👑',
-      }[r.tier]}</p>
+      }[r.tier]}</p>${lookLine}
       <div class="row"><button class="primary" id="qz-wear">👕 Put it on ${esc(HS.name)}</button><button id="qz-wardrobe">👗 See all accessories</button></div></div></div>`;
 }
 function bindReward(r) {
   $('qz-wear')?.addEventListener('click', () => { HS.equipped[r.item.slot] = r.id; saveHS(); showView('blocks'); openHelper();
     say(`Thanks for the <b>${esc(r.item.name)}</b>! ${r.item.icon} How do I look?`); });
-  $('qz-wardrobe')?.addEventListener('click', openWardrobe);
+  $('qz-wardrobe')?.addEventListener('click', () => openWardrobe());
+  $('qz-uselook')?.addEventListener('click', (e) => {
+    HS.look = { ...look(), [r.look.k]: r.look.v }; saveHS();
+    e.target.replaceWith(Object.assign(document.createElement('b'), { textContent: '✓ Using it!' }));
+  });
 }
 
 /* ============================================================ wiring */
 $('bk-helper').onclick = () => (hPanel.hidden ? openHelper() : closeHelper());
 $('helper-close').onclick = closeHelper;
-$('helper-dress').onclick = openWardrobe;
+$('helper-dress').onclick = () => openWardrobe();
 $('helper-check').onclick = () => ask('check my code');
 $('helper-form').onsubmit = (e) => { e.preventDefault(); const v = $('helper-input').value; $('helper-input').value = ''; ask(v); };
-$('helper-bot').onclick = openWardrobe;
+$('helper-bot').onclick = () => openWardrobe();
 
 $('btn-ask-bit').onclick = () => (hPanel.hidden ? openHelper() : closeHelper());
 
