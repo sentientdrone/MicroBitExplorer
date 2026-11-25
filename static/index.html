@@ -17,6 +17,7 @@
     <button class="tab" data-view="inside">🔬 Inside</button>
     <button class="tab" data-view="quiz">🏆 Quiz</button>
     <button class="tab" data-view="explorer">🌍 Explorer</button>
+    <button class="tab" data-view="videos">📺 Videos</button>
   </nav>
   <div class="search-wrap">
     <input id="search" type="search" placeholder="🔍 Search for answers…  ( / )" autocomplete="off" aria-label="Search lessons and answers">
@@ -207,6 +208,10 @@ while True:
   <div id="explorer-main" class="explorer-wrap"></div>
 </section>
 
+<section id="view-videos" hidden>
+  <div id="videos-main"></div>
+</section>
+
 <section id="view-quiz" hidden>
   <div id="quiz-main" class="quiz-wrap"></div>
 </section>
@@ -269,6 +274,7 @@ while True:
 <script src="tests.js"></script>
 <script src="games.js"></script>
 <script src="world.js"></script>
+<script src="videos.js"></script>
 <script src="sim-modules.js"></script>
 <script src="sim.js"></script>
 <script src="startlock.js"></script>
