@@ -10,6 +10,7 @@ A local web app for the BBC micro:bit v1 that runs on your own computer. It conn
 | 🧩 **Blocks** | A kid-friendly block editor (Blockly) that turns blocks into MicroPython. It has blocks for every v1 sensor (buttons, accelerometer and gestures, tilt, compass, magnetometer, temperature, light, touch pins), plus music, radio, pins, a timer and 7 example programs. |
 | 🔬 **Inside** | A clickable map of the chips on the board and how they're wired, with live readings and animated "watch how it works" walkthroughs. **How it works** mode has animated circuits for buttons, touch pins, accelerometer, compass, light sensing, temperature, the LED screen and binary, each with a live signal graph and the bits the processor receives. |
 | 🏆 **Quiz** | 29 questions plus hands-on challenges checked on the real micro:bit. Answers are chosen and then submitted (button A on the board works too). Scores win accessories for Bit, the helper. |
+| 🌍 **Explorer** | The class gallery. Kids share builds from Blocks or the Python editor, browse classmates' builds (blocks shown as real blocks), clap 👏, remix a copy, and run it on their own micro:bit. The teacher sees everything and can hide, feature or delete builds and manage kid accounts. |
 | 🎓 **Tour** | A guided walkthrough of every part of the connected board, with live readings. |
 
 Also:
@@ -17,6 +18,7 @@ Also:
 - 👗 **Accessories** won in the quiz dress Bit up. The better the score, the better the prize (0% gets a trash can).
 - 🔍 **Search** across every lesson, part, Tour step and quiz question. Press `/` to jump to it.
 - 👩‍🏫 **Parent / teacher code**. A grown-up creates their own code, which unlocks quiz answers in search and opens an answer key.
+- 🔑 **Kid accounts** (Explorer). Each kid unlocks their account with a 4–6 digit PIN on a number pad, and locks it when done (it also auto-locks after 30 minutes idle, or when the browser closes). **Making a new account needs the teacher password.** 5 wrong PINs block the account for a minute. The teacher can reset PINs, rename or delete accounts.
 
 ## Start
 
@@ -27,6 +29,41 @@ Also:
 This opens http://localhost:8321. Use **Chrome, Chromium or Edge**: Firefox and Safari don't support Web Serial or WebUSB. Options: `--port 9000`, `--no-browser`.
 
 You need Python 3, standard library only. Everything else (Blockly, DAPjs, the MicroPython firmware) is bundled in `static/vendor/`, so it works offline.
+
+## Run with Docker Compose
+
+```bash
+docker compose up -d --build
+```
+
+Then open http://localhost:8321 in Chrome, Chromium or Edge on the **same computer** the micro:bit is plugged into. Stop it with `docker compose down`.
+
+How it works:
+- The browser on your computer talks to the micro:bit directly (Web Serial and WebUSB). The container only serves the app, so it needs **no USB devices**. You still need the udev rule below on the host.
+- The port is published on `127.0.0.1` only. Web Serial and WebUSB only work on `localhost` (or HTTPS), so opening the app from another machine wouldn't be able to reach a micro:bit anyway.
+- **Flash via USB drive** works because compose mounts the host's `/media` and `/run/media`. That includes a micro:bit plugged in after the container starts.
+- The container runs as your user ID so it can write to your `MICROBIT` drive. It defaults to 1000. If `id -u` shows something else, run `UID=$(id -u) GID=$(id -g) docker compose up -d`.
+- To use another port, run `MICROBIT_PORT=9000 docker compose up -d`.
+- The container is locked down: read-only filesystem, no Linux capabilities, `no-new-privileges`.
+
+### Class server (for the 🌍 Explorer)
+
+Run this on **one** computer, usually the teacher's:
+
+```bash
+docker compose --profile class up -d --build
+```
+
+- In the Explorer tab, choose **👩‍🏫 Teacher → Set up or manage a class**, type this computer's network address with port 8330 (for example `192.168.1.20:8330`), then pick a class name and teacher password. You get a **class code** to give the students.
+- Students run the app on their own computers (their micro:bit is plugged in there) and join with that address and the class code.
+- Builds and accounts are kept in the `class-data` Docker volume.
+- The class server is reachable from the network, so its USB-drive flashing is turned off (`MICROBIT_DRIVE_API=0`). Use `CLASS_PORT` to change the port, or `CLASS_BIND=127.0.0.1` to keep it on this computer only.
+- Without Docker: `MICROBIT_DRIVE_API=0 python3 server.py --host 0.0.0.0 --port 8330 --no-browser`. Data goes in `./data` (or set `MICROBIT_DATA`).
+- Using one shared computer for the whole class? Skip the class server: leave the server address empty in the Explorer and it uses this computer.
+
+If you get `permission denied ... docker.sock`, either add yourself to the `docker` group (`sudo usermod -aG docker $USER`, then log out and back in) or put `sudo` in front of the docker commands.
+
+The server itself can also be configured with environment variables (`MICROBIT_HOST`, `MICROBIT_PORT`, `MICROBIT_NO_BROWSER=1`, `MICROBIT_MEDIA_ROOTS`) or flags (`--host`, `--port`, `--no-browser`).
 
 ## One-time Linux setup
 
@@ -44,6 +81,7 @@ Then unplug and replug the micro:bit. A snap-packaged Chromium also needs `sudo 
 - WebUSB flashing needs DAPLink interface firmware 0249 or newer (shown in the Device card). Flashing through the USB drive works with any version.
 - The server listens only on 127.0.0.1 and refuses cross-site requests.
 - Quiz progress, Bit's accessories, the parent/teacher code and saved blocks are stored in the browser (per computer and browser). The teacher code is stored hashed. It's a simple lock to stop peeking, not strong security.
+- Explorer data (builds, kid accounts, class settings) is stored on the class server as JSON files. The teacher password and kid PINs are stored hashed (PBKDF2). The class server is meant for a trusted school network: it uses plain HTTP, so don't expose it to the internet.
 
 ## Bundled third-party files
 

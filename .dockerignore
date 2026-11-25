@@ -1,0 +1,10 @@
+.git
+.gitignore
+.dockerignore
+Dockerfile
+compose.yaml
+README.md
+start.sh
+99-microbit.rules
+**/__pycache__
+**/*.pyc

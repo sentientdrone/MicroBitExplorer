@@ -567,7 +567,8 @@ window.onTermText = (text, cls) => {
 /* --------------------------------------------------------- view tabs */
 function showView(name) {
   for (const b of document.querySelectorAll('.tab')) b.classList.toggle('active', b.dataset.view === name);
-  for (const v of ['manager', 'blocks', 'inside', 'quiz']) $('view-' + v).hidden = name !== v;
+  for (const v of ['manager', 'blocks', 'inside', 'quiz', 'explorer']) $('view-' + v).hidden = name !== v;
+  if (name === 'explorer') window.onExplorerShow && window.onExplorerShow();
   document.body.classList.toggle('blocks-mode', name === 'blocks');
   if (name === 'quiz') window.onQuizShow && window.onQuizShow();
   if (name === 'blocks') initBlocks();

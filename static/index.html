@@ -15,6 +15,7 @@
     <button class="tab" data-view="blocks">🧩 Blocks</button>
     <button class="tab" data-view="inside">🔬 Inside</button>
     <button class="tab" data-view="quiz">🏆 Quiz</button>
+    <button class="tab" data-view="explorer">🌍 Explorer</button>
   </nav>
   <div class="search-wrap">
     <input id="search" type="search" placeholder="🔍 Search for answers…  ( / )" autocomplete="off" aria-label="Search lessons and answers">
@@ -143,6 +144,7 @@ while True:
       <button id="btn-run" class="needs-serial primary" disabled>Run</button>
       <button id="btn-stop" class="needs-serial" disabled>Stop</button>
       <button id="btn-save-main" class="needs-serial" disabled title="Writes main.py so it runs on every reset">Save as main.py</button>
+      <button id="btn-share-py" title="Share this code with your class">📤 Share with class</button>
       <button id="btn-ask-bit" class="ask-bit">🤖 Ask Bit for help</button>
     </div>
     <p class="hint">Run sends the code to the REPL without saving it. Output appears in the console.</p>
@@ -198,6 +200,10 @@ while True:
   </div>
 </section>
 
+<section id="view-explorer" hidden>
+  <div id="explorer-main" class="explorer-wrap"></div>
+</section>
+
 <section id="view-quiz" hidden>
   <div id="quiz-main" class="quiz-wrap"></div>
 </section>
@@ -214,6 +220,7 @@ while True:
     <button id="bk-export">⬇ Save file</button>
     <button id="bk-python">🐍 Python</button>
     <button id="bk-helper" class="bk-helper-btn">🤖 Helper</button>
+    <button id="bk-share" title="Share your blocks with your class">📤 Share</button>
     <span id="bk-status" class="bk-status"></span>
   </div>
   <div class="bk-main">
@@ -254,5 +261,6 @@ while True:
 <script src="teacher.js"></script>
 <script src="helper.js"></script>
 <script src="pyhelper.js"></script>
+<script src="explorer.js"></script>
 </body>
 </html>

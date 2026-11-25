@@ -1,0 +1,66 @@
+# Run with:   docker compose up -d --build
+# Then open:  http://localhost:8321   (in Chrome, Chromium or Edge)
+#
+# Web Serial / WebUSB only work on a "secure" page, and http://localhost counts.
+# So the port is published on 127.0.0.1 only: open it on the same computer the
+# micro:bit is plugged into, not from another machine.
+services:
+  microbit:
+    build: .
+    image: microbit-explorer:latest
+    container_name: microbit-explorer
+    restart: unless-stopped
+    init: true
+
+    ports:
+      - "127.0.0.1:${MICROBIT_PORT:-8321}:8321"
+
+    # Run as you, so the server can write .hex files onto your MICROBIT drive.
+    # Bash doesn't export UID/GID by default; if yours isn't 1000, run:
+    #   UID=$(id -u) GID=$(id -g) docker compose up -d
+    user: "${UID:-1000}:${GID:-1000}"
+
+    # The host's USB-drive mount folders, for "Flash via USB drive".
+    # rslave: a micro:bit plugged in *after* the container starts still shows up,
+    # and so does the drive remounting itself after every flash.
+    volumes:
+      - /media:/media:rslave
+      - /run/media:/run/media:rslave
+
+    # Class Explorer data, if you use this computer as a class of one.
+    environment:
+      MICROBIT_DATA: /data
+    # Lock it down: nothing in the container needs to write except the mounts.
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+
+  # ---------------------------------------------------------------------------
+  # The CLASS SERVER for the 🌍 Explorer tab: shared builds and kid accounts.
+  # Run it on ONE computer (usually the teacher's):
+  #     docker compose --profile class up -d --build
+  # Students join with this computer's network address and port 8330
+  # (e.g. 192.168.1.20:8330) plus the class code from the Explorer tab.
+  # It is reachable from the network, so USB-drive flashing is turned off here.
+  class-server:
+    profiles: [class]
+    build: .
+    image: microbit-explorer:latest
+    container_name: microbit-class-server
+    restart: unless-stopped
+    init: true
+    ports:
+      - "${CLASS_BIND:-0.0.0.0}:${CLASS_PORT:-8330}:8321"
+    environment:
+      MICROBIT_DRIVE_API: "0"
+      MICROBIT_DATA: /data
+    volumes:
+      - class-data:/data
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  class-data:
