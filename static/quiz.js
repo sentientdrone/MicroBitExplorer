@@ -100,7 +100,7 @@ function quizStart() {
   $('quiz-main').innerHTML = `
     <div class="qz-card qz-start">
       <div class="qz-trophy">🏆</div>
-      <h2>micro:bit Quiz</h2>
+      <h2>🧒 Kid quiz</h2>
       <p>How much do you know about what's inside your micro:bit? Answer questions about the processor, buttons,
         sensors, LEDs and more.</p>
       <div class="qz-opts">
@@ -110,7 +110,7 @@ function quizStart() {
         <label class="check qz-hands"><input type="checkbox" id="qz-hands" ${canLive ? 'checked' : 'disabled'}>
           🖐️ Include hands-on challenges on the real micro:bit ${canLive ? '' : '<span class="muted">(connect serial first)</span>'}</label>
       </div>
-      <p class="qz-prize">🎁 Finish the quiz to win an <b>accessory for your coding helper</b>. The better you score, the better the prize. Score 0% and you get a trash can! 🗑️</p>
+      <p class="qz-prize">🎁 Finish to win one of the <b>original outfits</b> for Bit (the better your score, the better the prize; 0% gets a trash can! 🗑️) plus <b>🪙 5 Bit Bucks for every right answer</b> to spend in the shop.</p>
       <button class="primary qz-go" id="qz-go">Start quiz ▶</button>
       ${QZ.best ? `<p class="muted">Your best score so far: <b>${QZ.best}%</b></p>` : ''}
       ${canLive ? '' : `<p class="muted">Tip: connect the micro:bit and it will react to your answers. <button class="small" id="qz-connect">Connect serial</button></p>`}
@@ -283,7 +283,8 @@ function showResults() {
         : 'Nice try! Explore the Tour and the Inside tab, then try again.';
   const newBest = pct > QZ.best;
   if (newBest) { QZ.best = pct; try { localStorage.setItem(QUIZ_BEST, String(pct)); } catch {} }
-  const reward = typeof awardAccessory === 'function' ? awardAccessory(pct) : null;
+  const reward = typeof awardAccessory === 'function' ? awardAccessory(pct, 'kid') : null;
+  const pay = typeof earnBucks === 'function' ? earnBucks(QZ.score, total, 'kid') : null;
   boardReact(stars >= 2 ? `display.show(Image.HAPPY)\nsleep(600)\ndisplay.scroll('${QZ.score}/${total}', wait=False)` : `display.scroll('${QZ.score}/${total}', wait=False)`);
   const review = QZ.missed.map((m, k) => `<li><b>${esc(m.q)}</b>
       ${m.kind === 'mc' ? `<div>Answer: ${esc(m.a[0])}</div>` : ''}
@@ -293,6 +294,7 @@ function showResults() {
     <div class="qz-stars">${[1, 2, 3].map((s) => `<span class="${s <= stars ? 'on' : ''}">★</span>`).join('')}</div>
     <h2>${QZ.score} out of ${total} <span class="muted">(${pct}%)</span></h2>
     <p class="qz-msg">${msg}</p>
+    ${pay ? `<p class="qz-pay">🪙 You earned <b>${pay.earned} Bit Bucks</b>${pay.bonus ? ` (including a ${pay.bonus} perfect-score bonus!)` : ''}. You now have ${HS.bucks}. <button class="small" id="qz-shop">🛒 Go to the shop</button></p>` : ''}
     ${reward ? rewardHTML(reward, pct) : ''}
     ${newBest ? '<p class="qz-best">🏅 New best score!</p>' : `<p class="muted">Best score: ${QZ.best}%</p>`}
     ${QZ.missed.length ? `<h3>Questions to look at again</h3><ol class="qz-review">${review}</ol>` : ''}
@@ -302,6 +304,7 @@ function showResults() {
   </div>`;
   $('qz-home').onclick = quizStart;
   if (reward?.item) bindReward(reward);
+  $('qz-shop')?.addEventListener('click', () => { openWardrobe(); document.querySelector('.wr-tabs [data-t="shop"]').click(); });
   $('qz-again').onclick = () => beginQuiz(QZ.settings.n, QZ.settings.hands);
   $('qz-tour').onclick = () => $('btn-tour').click();
   $('qz-inside').onclick = () => showView('inside');

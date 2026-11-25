@@ -9,13 +9,15 @@ A local web app for the BBC micro:bit v1 that runs on your own computer. It conn
 | 🧰 **Manager** | Serial console and MicroPython REPL, flash `.hex` files (WebUSB or the `MICROBIT` drive), one-click **Install MicroPython**, live sensor readings (°C/°F), LED drawing, a Python code editor, and a file manager (list, edit, upload, download, delete). |
 | 🧩 **Blocks** | A kid-friendly block editor (Blockly) that turns blocks into MicroPython. It has blocks for every v1 sensor (buttons, accelerometer and gestures, tilt, compass, magnetometer, temperature, light, touch pins), plus music, radio, pins, a timer and 7 example programs. |
 | 🔬 **Inside** | A clickable map of the chips on the board and how they're wired, with live readings and animated "watch how it works" walkthroughs. **How it works** mode has animated circuits for buttons, touch pins, accelerometer, compass, light sensing, temperature, the LED screen and binary, each with a live signal graph and the bits the processor receives. |
-| 🏆 **Quiz** | 29 questions plus hands-on challenges checked on the real micro:bit. Answers are chosen and then submitted (button A on the board works too). Scores win accessories for Bit, the helper. |
+| 🏆 **Quiz** | **🧒 Kid quiz**: 29 built-in questions plus hands-on challenges checked on the real micro:bit; wins the original outfits. **🏫 Teacher quiz**: the teacher writes their own quiz, gets a **quiz code**, and kids type it in to take it. Answers are checked on the class server, the teacher sees each kid's score and a per-question breakdown, and it wins the newer outfits. Answers are chosen and then submitted (button A on the board works too). |
 | 🌍 **Explorer** | The class gallery. Kids share builds from Blocks or the Python editor, browse classmates' builds (blocks shown as real blocks), clap 👏, remix a copy, and run it on their own micro:bit. The teacher sees everything and can hide, feature or delete builds and manage kid accounts. |
 | 🎓 **Tour** | A guided walkthrough of every part of the connected board, with live readings. |
 
 Also:
 - 🤖 **Bit, the coding helper** (Blocks and Manager tabs). Bit checks blocks or Python for common mistakes, explains micro:bit error messages, answers "how do I…?" questions and can add example blocks or code. Bit works offline.
-- 👗 **Accessories** won in the quiz dress Bit up. The better the score, the better the prize (0% gets a trash can).
+- 👗 **Outfits** (43) dress Bit up. Kid quizzes win the original 22, teacher quizzes the other 21. The better the score, the better the prize (0% gets a junk item, starting with a trash can).
+- 🎨 **Looks**: change Bit's body colour, eyes, glow colour, mouth and antenna (all free).
+- 🪙 **Bit Bucks and the 🛒 Shop**: start with 100 Bit Bucks and earn more from quizzes (5 per right answer on a Kid quiz, 10 on a teacher quiz, plus a perfect-score bonus). Buy any outfit (10 to 300 by tier) or sell one back for half price.
 - 🔍 **Search** across every lesson, part, Tour step and quiz question. Press `/` to jump to it.
 - 👩‍🏫 **Parent / teacher code**. A grown-up creates their own code, which unlocks quiz answers in search and opens an answer key.
 - 🔑 **Kid accounts** (Explorer). Each kid unlocks their account with a 4–6 digit PIN on a number pad, and locks it when done (it also auto-locks after 30 minutes idle, or when the browser closes). **Making a new account needs the teacher password.** 5 wrong PINs block the account for a minute. The teacher can reset PINs, rename or delete accounts.
@@ -71,6 +73,18 @@ Point the tunnel at the **class server** (`--profile class`, port 8330):
 - Requests that arrive through a tunnel or proxy can never use USB-drive flashing, whatever `MICROBIT_DRIVE_API` is set to.
 - After 10 wrong teacher passwords in 10 minutes, teacher logins pause. Kid PINs lock for a minute after 5 wrong tries.
 
+### Forgot the teacher password?
+
+There's no email reset. Instead, whoever can run commands on the class server's computer sets a new password. The class code, kid accounts, builds and quizzes all stay the same, and the server doesn't need a restart:
+
+```bash
+docker compose --profile class exec class-server python server.py --reset-teacher-password
+```
+
+Without Docker, run `python3 server.py --reset-teacher-password` in the project folder (with the same `MICROBIT_DATA` setting as the running server, if you changed it). It asks you to type the new password twice. If it can't ask, for example with `docker compose exec -T`, it makes up a password and prints it: log in with that, then choose your own with **🔑 Change password**.
+
+After 10 wrong passwords in 10 minutes, teacher logins pause for a few minutes. Kids who forget their PIN: the teacher resets it in **👥 Kid accounts**.
+
 If you get `permission denied ... docker.sock`, either add yourself to the `docker` group (`sudo usermod -aG docker $USER`, then log out and back in) or put `sudo` in front of the docker commands.
 
 The server itself can also be configured with environment variables (`MICROBIT_HOST`, `MICROBIT_PORT`, `MICROBIT_NO_BROWSER=1`, `MICROBIT_MEDIA_ROOTS`) or flags (`--host`, `--port`, `--no-browser`).
@@ -90,7 +104,7 @@ Then unplug and replug the micro:bit. A snap-packaged Chromium also needs `sudo 
 - The MicroPython, Blocks, Inside (live), Quiz challenges and Bit's error help all need MicroPython on the board. Use **Install MicroPython** in the Manager tab.
 - WebUSB flashing needs DAPLink interface firmware 0249 or newer (shown in the Device card). Flashing through the USB drive works with any version.
 - The server listens only on 127.0.0.1 and refuses cross-site requests.
-- Quiz progress, Bit's accessories, the parent/teacher code and saved blocks are stored in the browser (per computer and browser). The teacher code is stored hashed. It's a simple lock to stop peeking, not strong security.
+- Quiz progress, Bit's outfits, looks and Bit Bucks, the parent/teacher code and saved blocks are stored in the browser (per computer and browser). The teacher code is stored hashed. It's a simple lock to stop peeking, not strong security.
 - Explorer data (builds, kid accounts, class settings) is stored on the class server as JSON files. The teacher password and kid PINs are stored hashed (PBKDF2). On a school network the class server uses plain HTTP. To reach it from the internet, put it behind HTTPS (for example a Cloudflare Tunnel, see above) and use a strong teacher password: the class code and kid PINs are made for convenience, not for strong security.
 
 ## Bundled third-party files

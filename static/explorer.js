@@ -159,7 +159,12 @@ function teacherSetup(server) {
 function teacherLogin(server, className) {
   exDialog(`<h2>🔑 Teacher login</h2><p>Class: <b>${esc(className || '')}</b>${server ? ` on <code>${esc(server)}</code>` : ''}</p>
     <form id="ext-login" class="tdlg-form"><input type="password" id="ext-pw" placeholder="Teacher password" autocomplete="current-password">
-      <p class="tdlg-err" id="ext-err"></p><div class="row"><button class="primary">Log in</button><button type="button" id="ext-cancel">Cancel</button></div></form>`, () => {
+      <p class="tdlg-err" id="ext-err"></p><div class="row"><button class="primary">Log in</button><button type="button" id="ext-cancel">Cancel</button></div></form>
+    <details class="tdlg-note"><summary>Forgot the teacher password?</summary>
+      Whoever runs the class server can set a new one on that computer. Your class code, kid accounts, builds and quizzes stay the same:
+      <pre class="hm-code">python3 server.py --reset-teacher-password</pre>
+      or with Docker:
+      <pre class="hm-code">docker compose --profile class exec class-server python server.py --reset-teacher-password</pre></details>`, () => {
     $('ext-cancel').onclick = exClose;
     $('ext-login').onsubmit = async (e) => {
       e.preventDefault();
@@ -404,7 +409,7 @@ async function loadTeacherBar() {
     bar.innerHTML = `<div><b>Class code:</b> <span class="ex-code-inline">${esc(i.code)}</span></div>
       <div>${i.accounts} kid accounts · ${i.builds} builds · ${i.hidden} hidden</div>
       <div class="ex-kids">${kids.map(([n, c]) => `<button class="small" data-kid="${esc(n)}">${esc(n)} (${c})</button>`).join('')}</div>
-      <div class="row"><button class="small" id="ext-newcode">🔁 New class code</button><button class="small" id="ext-rename">✏️ Rename class</button><button class="small" id="ext-newpw">🔑 Change password</button><button class="small primary" id="ext-accts">👥 Kid accounts</button><button class="small" id="ext-handover">🧒 Switch to a kid</button></div>`;
+      <div class="row"><button class="small" id="ext-newcode">🔁 New class code</button><button class="small" id="ext-rename">✏️ Rename class</button><button class="small" id="ext-newpw">🔑 Change password</button><button class="small primary" id="ext-accts">👥 Kid accounts</button><button class="small primary" id="ext-quizzes">📝 Class quizzes</button><button class="small" id="ext-handover">🧒 Switch to a kid</button></div>`;
     bar.querySelectorAll('[data-kid]').forEach((b) => (b.onclick = () => { EX.by = b.dataset.kid; $('ex-by').value = EX.by; drawGrid(); }));
     $('ext-newcode').onclick = async () => {
       if (!confirm('Make a new class code? Students will need the new code to see and share builds.')) return;

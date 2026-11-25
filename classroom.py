@@ -8,6 +8,7 @@ Storage is plain JSON files in a data folder:
     <data>/class.json            class name, join code, teacher password hash
     <data>/students.json         kid accounts: name + hashed PIN
     <data>/builds/<id>.json      one file per shared build
+    <data>/quizzes/<id>.json     quizzes the teacher wrote, with kids' results
 
 Kids unlock their account with a 4-6 digit PIN; making a new account needs
 the teacher password.
@@ -66,12 +67,14 @@ class Classroom:
     def __init__(self, data_dir):
         self.dir = Path(data_dir)
         self.builds_dir = self.dir / "builds"
+        self.quizzes_dir = self.dir / "quizzes"
         self.lock = threading.Lock()
         self.sessions = {}          # teacher token -> expiry time
         self.student_sessions = {}  # student token -> (student id, expiry time)
         self.login_fails = []       # times of recent wrong teacher passwords (slows down guessing)
         try:
             self.builds_dir.mkdir(parents=True, exist_ok=True)
+            self.quizzes_dir.mkdir(parents=True, exist_ok=True)
             self.writable = True
         except OSError:
             self.writable = False
@@ -217,6 +220,20 @@ class Classroom:
             students[b["author"]] = students.get(b["author"], 0) + 1
         return {"name": c["name"], "code": c["code"], "builds": len(builds), "accounts": len(self._students()),
                 "hidden": sum(b.get("hidden", False) for b in builds), "students": students}
+
+    def reset_teacher_password(self, password):
+        """Set a new teacher password directly (used by the server's --reset-teacher-password
+        command, which only someone with access to the server computer can run)."""
+        if len(password) < 6:
+            raise ApiError(400, "the teacher password needs at least 6 characters")
+        with self.lock:
+            c = self._class()
+            if not c:
+                raise ApiError(409, "no class is set up yet: create one from the Explorer tab instead")
+            c["salt"] = secrets.token_hex(16)
+            c["hash"] = _hash_password(password, c["salt"])
+            self._save_json(self.dir / "class.json", c)
+        return c["name"]
 
     def teacher_settings(self, token, body):
         self._require_teacher(token)
@@ -439,6 +456,147 @@ class Classroom:
                 del self.student_sessions[t]
         return {"ok": True}
 
+    # ------------------------------------------------- teacher quizzes
+    def _quiz(self, quiz_id):
+        if not re.fullmatch(r"[0-9a-f]{12}", quiz_id or ""):
+            raise ApiError(404, "quiz not found")
+        try:
+            return json.loads((self.quizzes_dir / f"{quiz_id}.json").read_text())
+        except (OSError, ValueError):
+            raise ApiError(404, "quiz not found")
+
+    def _all_quizzes(self):
+        out = []
+        for p in self.quizzes_dir.glob("*.json"):
+            try:
+                out.append(json.loads(p.read_text()))
+            except (OSError, ValueError):
+                pass
+        return sorted(out, key=lambda q: q["created"], reverse=True)
+
+    def _quiz_by_code(self, code):
+        code = (code or "").strip().upper()
+        for q in self._all_quizzes():
+            if code and hmac.compare_digest(q["code"], code):
+                return q
+        raise ApiError(404, "there's no quiz with that code. Check it with your teacher")
+
+    @staticmethod
+    def _clean_questions(questions):
+        if not isinstance(questions, list) or not 1 <= len(questions) <= 30:
+            raise ApiError(400, "a quiz needs 1 to 30 questions")
+        out = []
+        for n, q in enumerate(questions, 1):
+            if not isinstance(q, dict):
+                raise ApiError(400, f"question {n} is broken")
+            text = (q.get("q") or "").strip()
+            answers = [str(a).strip() for a in (q.get("answers") or []) if str(a).strip()]
+            correct = q.get("correct")
+            why = (q.get("why") or "").strip()
+            if not text or len(text) > 200:
+                raise ApiError(400, f"question {n} needs some text (up to 200 characters)")
+            if not 2 <= len(answers) <= 4 or any(len(a) > 100 for a in answers):
+                raise ApiError(400, f"question {n} needs 2 to 4 answers (up to 100 characters each)")
+            if not isinstance(correct, int) or not 0 <= correct < len(answers):
+                raise ApiError(400, f"question {n}: pick which answer is right")
+            if len(why) > 300:
+                raise ApiError(400, f"question {n}: the explanation is too long")
+            out.append({"q": text, "answers": answers, "correct": correct, "why": why})
+        return out
+
+    def _new_quiz_code(self):
+        taken = {q["code"] for q in self._all_quizzes()} | {(self._class() or {}).get("code")}
+        while True:
+            code = _new_code()
+            if code not in taken:
+                return code
+
+    def create_quiz(self, token, body):
+        self._require_teacher(token)
+        title = (body.get("title") or "").strip()
+        if not title or len(title) > 80:
+            raise ApiError(400, "give the quiz a name (up to 80 characters)")
+        questions = self._clean_questions(body.get("questions"))
+        with self.lock:
+            q = {"id": secrets.token_hex(6), "code": self._new_quiz_code(), "title": title, "questions": questions,
+                 "created": time.time(), "open": True, "results": []}
+            self._save_json(self.quizzes_dir / f"{q['id']}.json", q)
+        return {"id": q["id"], "code": q["code"]}
+
+    def list_quizzes(self, token):
+        self._require_teacher(token)
+        return {"quizzes": [{"id": q["id"], "code": q["code"], "title": q["title"], "questions": len(q["questions"]),
+                             "open": q["open"], "created": q["created"], "results": len(q["results"]),
+                             "kids": len({r["studentId"] for r in q["results"]})} for q in self._all_quizzes()]}
+
+    def get_quiz_admin(self, quiz_id, token):
+        self._require_teacher(token)
+        return self._quiz(quiz_id)
+
+    def update_quiz(self, quiz_id, token, body):
+        self._require_teacher(token)
+        with self.lock:
+            q = self._quiz(quiz_id)
+            if "title" in body:
+                title = (body.get("title") or "").strip()
+                if not title or len(title) > 80:
+                    raise ApiError(400, "give the quiz a name (up to 80 characters)")
+                q["title"] = title
+            if "questions" in body:
+                q["questions"] = self._clean_questions(body["questions"])
+            if "open" in body:
+                q["open"] = bool(body["open"])
+            if body.get("clearResults"):
+                q["results"] = []
+            self._save_json(self.quizzes_dir / f"{quiz_id}.json", q)
+        return {"id": q["id"], "code": q["code"], "open": q["open"]}
+
+    def delete_quiz(self, quiz_id, token):
+        self._require_teacher(token)
+        with self.lock:
+            self._quiz(quiz_id)
+            (self.quizzes_dir / f"{quiz_id}.json").unlink(missing_ok=True)
+        return {"ok": True}
+
+    def _playable(self, quiz_code, code, token, student_token):
+        self._check_code(code, token)
+        me = self.student_for(student_token)
+        if not me and not self.is_teacher(token):
+            raise ApiError(401, "unlock your account first, so your score is saved")
+        q = self._quiz_by_code(quiz_code)
+        if not q["open"] and not self.is_teacher(token):
+            raise ApiError(403, "this quiz is closed right now")
+        return q, me
+
+    def play_quiz(self, quiz_code, code, token, student_token):
+        q, _ = self._playable(quiz_code, code, token, student_token)
+        # never send the right answers to the kid's computer up front
+        return {"code": q["code"], "title": q["title"], "questions": [{"q": x["q"], "answers": x["answers"]} for x in q["questions"]]}
+
+    def check_answer(self, quiz_code, body, code, token, student_token):
+        q, _ = self._playable(quiz_code, code, token, student_token)
+        i = body.get("i")
+        if not isinstance(i, int) or not 0 <= i < len(q["questions"]):
+            raise ApiError(400, "no such question")
+        item = q["questions"][i]
+        return {"correct": body.get("choice") == item["correct"], "correctIndex": item["correct"],
+                "correctText": item["answers"][item["correct"]], "why": item["why"]}
+
+    def submit_quiz(self, quiz_code, body, code, token, student_token):
+        q, me = self._playable(quiz_code, code, token, student_token)
+        answers = body.get("answers")
+        if not isinstance(answers, list) or len(answers) != len(q["questions"]):
+            raise ApiError(400, "answer every question first")
+        score = sum(1 for a, item in zip(answers, q["questions"]) if a == item["correct"])
+        total = len(q["questions"])
+        if me:  # the teacher trying it out isn't recorded
+            with self.lock:
+                q = self._quiz(q["id"])
+                q["results"].append({"studentId": me["id"], "name": me["name"], "score": score, "total": total,
+                                     "answers": answers, "at": time.time()})
+                self._save_json(self.quizzes_dir / f"{q['id']}.json", q)
+        return {"score": score, "total": total}
+
     # ----------------------------------------------------------- router
     def route(self, method, path, headers, body):
         code, token, owner = headers.get("X-Class-Code"), headers.get("X-Teacher-Token"), headers.get("X-Owner-Token")
@@ -471,6 +629,25 @@ class Classroom:
             return self.lock_account(student)
         if method == "GET" and parts == ["me"]:
             return self.me(student)
+        if parts[:1] == ["quizzes"]:
+            if method == "GET" and len(parts) == 1:
+                return self.list_quizzes(token)
+            if method == "POST" and len(parts) == 1:
+                return self.create_quiz(token, body)
+            if len(parts) == 2:
+                if method == "GET":
+                    return self.get_quiz_admin(parts[1], token)
+                if method == "PATCH":
+                    return self.update_quiz(parts[1], token, body)
+                if method == "DELETE":
+                    return self.delete_quiz(parts[1], token)
+        if parts[:1] == ["quiz"] and len(parts) >= 2:
+            if method == "GET" and len(parts) == 2:
+                return self.play_quiz(parts[1], code, token, student)
+            if method == "POST" and len(parts) == 3 and parts[2] == "check":
+                return self.check_answer(parts[1], body, code, token, student)
+            if method == "POST" and len(parts) == 3 and parts[2] == "submit":
+                return self.submit_quiz(parts[1], body, code, token, student)
         if parts[:1] == ["builds"]:
             if method == "GET" and len(parts) == 1:
                 return self.list_builds(code, token)

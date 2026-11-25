@@ -5,12 +5,16 @@
 
 /* ======================================================= accessories */
 const TIERS = {
-  junk:      { name: 'Junk',      color: '#8c959f', need: 'Score 0% on the quiz' },
-  common:    { name: 'Common',    color: '#2f81f7', need: 'Score 1–49% on the quiz' },
-  cool:      { name: 'Cool',      color: '#1a7f37', need: 'Score 50–79% on the quiz' },
-  epic:      { name: 'Epic',      color: '#8957e5', need: 'Score 80–99% on the quiz' },
-  legendary: { name: 'Legendary', color: '#d4a000', need: 'Score 100% on the quiz' },
+  junk:      { name: 'Junk',      color: '#8c959f', need: 'Score 0%' },
+  common:    { name: 'Common',    color: '#2f81f7', need: 'Score 1–49%' },
+  cool:      { name: 'Cool',      color: '#1a7f37', need: 'Score 50–79%' },
+  epic:      { name: 'Epic',      color: '#8957e5', need: 'Score 80–99%' },
+  legendary: { name: 'Legendary', color: '#d4a000', need: 'Score 100%' },
 };
+// Which kind of quiz wins which outfits: the built-in Kid quiz wins the originals,
+// quizzes a teacher writes (with a quiz code) win the newer ones.
+const POOLS = { kid: { name: '🧒 Kid quiz prizes', quiz: 'a Kid quiz' }, teacher: { name: '🏫 Teacher quiz prizes', quiz: 'a teacher\'s quiz' } };
+const poolOf = (it) => it.pool || 'kid';
 const tierFor = (pct) => (pct <= 0 ? 'junk' : pct < 50 ? 'common' : pct < 80 ? 'cool' : pct < 100 ? 'epic' : 'legendary');
 
 const emo = (ch, x, y, size, extra = '') => `<text x="${x}" y="${y}" font-size="${size}" text-anchor="middle" dominant-baseline="central" ${extra}>${ch}</text>`;
@@ -46,6 +50,32 @@ const ITEMS = {
     draw: () => `<circle cx="100" cy="110" r="100" fill="url(#bot-glow)"/>${emo('✨', 30, 40, 24)}${emo('✨', 172, 60, 20)}${emo('✨', 160, 190, 18)}${emo('✨', 36, 170, 18)}` },
   rainbow:    { name: 'Rainbow',          tier: 'legendary', slot: 'aura', icon: '🌈', draw: () => emo('🌈', 100, 70, 170, 'opacity=".55"') },
   trophy:     { name: 'Champion trophy',  tier: 'legendary', slot: 'hand', icon: '🏆', draw: () => emo('🏆', 160, 138, 42) },
+
+  // ---- won from teacher quizzes
+  bucket:     { pool: 'teacher', name: 'Bucket hat (a real bucket)', tier: 'junk', slot: 'head', icon: '🪣', draw: () => emo('🪣', 100, 22, 56, 'transform="rotate(180 100 22)"') },
+  sponge:     { pool: 'teacher', name: 'Soggy sponge',     tier: 'junk', slot: 'hand', icon: '🧽', draw: () => emo('🧽', 158, 148, 32) + emo('💧', 166, 172, 14) },
+  boot:       { pool: 'teacher', name: 'One old boot',     tier: 'junk', slot: 'ride', icon: '🥾', draw: () => emo('🥾', 100, 200, 58) },
+  flower:     { pool: 'teacher', name: 'Sunflower',        tier: 'common', slot: 'head', icon: '🌻', draw: () => emo('🌻', 116, 30, 40) },
+  lollipop:   { pool: 'teacher', name: 'Giant lollipop',   tier: 'common', slot: 'hand', icon: '🍭', draw: () => emo('🍭', 160, 138, 40) },
+  backpack:   { pool: 'teacher', name: 'School backpack',  tier: 'common', slot: 'back', icon: '🎒', draw: () => emo('🎒', 140, 126, 50) },
+  starbadge:  { pool: 'teacher', name: 'Gold star badge',  tier: 'common', slot: 'neck', icon: '⭐', draw: () => emo('⭐', 116, 122, 24) },
+  tophat:     { pool: 'teacher', name: 'Top hat',          tier: 'cool', slot: 'head', icon: '🎩', draw: () => emo('🎩', 100, 22, 58) },
+  basketball: { pool: 'teacher', name: 'Basketball',       tier: 'cool', slot: 'hand', icon: '🏀', draw: () => emo('🏀', 162, 146, 36) },
+  scooter:    { pool: 'teacher', name: 'Scooter',          tier: 'cool', slot: 'ride', icon: '🛴', draw: () => emo('🛴', 100, 204, 74) },
+  snorkel:    { pool: 'teacher', name: 'Snorkel mask',     tier: 'cool', slot: 'face', icon: '🤿', draw: () => emo('🤿', 100, 70, 56) },
+  medal:      { pool: 'teacher', name: 'Winner\'s medal',  tier: 'cool', slot: 'neck', icon: '🏅', draw: () => emo('🏅', 100, 124, 32) },
+  unicorn:    { pool: 'teacher', name: 'Unicorn horn',     tier: 'epic', slot: 'head', icon: '🦄',
+    draw: () => `<polygon points="90,44 110,44 100,-10" fill="#ffd6f5" stroke="#d63aa0" stroke-width="2"/><path d="M93,32 L106,26 M95,18 L104,13 M97,4 L102,1" stroke="#d63aa0" stroke-width="2"/>` },
+  visor:      { pool: 'teacher', name: 'Laser visor',      tier: 'epic', slot: 'face', icon: '🥽',
+    draw: () => '<rect x="58" y="61" width="84" height="16" rx="8" fill="#ff3b30" opacity=".85"/><rect x="58" y="61" width="84" height="16" rx="8" fill="none" stroke="#ff9e98" stroke-width="2"/>' },
+  dragon:     { pool: 'teacher', name: 'Pet dragon',       tier: 'epic', slot: 'back', icon: '🐉', draw: () => emo('🐉', 156, 96, 58) },
+  ufo:        { pool: 'teacher', name: 'Flying saucer',    tier: 'epic', slot: 'ride', icon: '🛸', draw: () => emo('🛸', 100, 206, 84) },
+  lightning:  { pool: 'teacher', name: 'Lightning aura',   tier: 'epic', slot: 'aura', icon: '⚡', draw: () => emo('⚡', 28, 60, 28) + emo('⚡', 172, 66, 24) + emo('⚡', 36, 176, 22) + emo('⚡', 166, 186, 26) },
+  tiara:      { pool: 'teacher', name: 'Star tiara',       tier: 'legendary', slot: 'head', icon: '🌟',
+    draw: () => `<path d="M68,44 Q100,30 132,44" fill="none" stroke="#d4a000" stroke-width="5"/>${emo('🌟', 100, 20, 38)}${emo('✦', 76, 34, 14, 'fill="#ffd33d"')}${emo('✦', 124, 34, 14, 'fill="#ffd33d"')}` },
+  diamond:    { pool: 'teacher', name: 'Giant diamond',    tier: 'legendary', slot: 'hand', icon: '💎', draw: () => emo('💎', 160, 140, 40) },
+  wings:      { pool: 'teacher', name: 'Butterfly wings',  tier: 'legendary', slot: 'back', icon: '🦋', draw: () => emo('🦋', 44, 118, 64, 'transform="scale(-1 1) translate(-88 0)"') + emo('🦋', 156, 118, 64) },
+  planet:     { pool: 'teacher', name: 'Planet rings',     tier: 'legendary', slot: 'aura', icon: '🪐', draw: () => emo('🪐', 100, 96, 190, 'opacity=".45"') },
 };
 const SLOT_ORDER_BEHIND = ['aura', 'back'];
 const SLOT_ORDER_FRONT = ['neck', 'face', 'head', 'hand', 'ride'];
@@ -53,19 +83,83 @@ const SLOT_NAMES = { head: 'Head', face: 'Face', neck: 'Neck', hand: 'Hand', rid
 
 /* ------------------------------------------------------ saved state */
 const HELPER_KEY = 'microbit-helper';
-let HS = { name: 'Bit', owned: [], equipped: {} };
+let HS = { name: 'Bit', owned: [], equipped: {}, bucks: 100 };  // everyone starts with 100 Bit Bucks
 try { HS = { ...HS, ...JSON.parse(localStorage.getItem(HELPER_KEY) || '{}') }; } catch {}
 const saveHS = () => { try { localStorage.setItem(HELPER_KEY, JSON.stringify(HS)); } catch {} };
+if (typeof HS.bucks !== 'number') { HS.bucks = 100; saveHS(); }  // older saves: give the starting money
 
-function botSVG(equipped = HS.equipped, cls = '') {
+/* ---------------------------------------------------------- Bit Bucks */
+const PRICES = { junk: 10, common: 40, cool: 80, epic: 150, legendary: 300 };
+const sellPrice = (it) => Math.floor(PRICES[it.tier] / 2);
+const BB = (n) => `<span class="bb">🪙 ${n}</span>`;
+// Quiz pay: Kid quizzes 5 per right answer, teacher quizzes 10; a perfect score adds a bonus.
+function earnBucks(correct, total, kind = 'kid') {
+  const per = kind === 'teacher' ? 10 : 5;
+  const bonus = total && correct === total ? (kind === 'teacher' ? 30 : 20) : 0;
+  const earned = correct * per + bonus;
+  HS.bucks += earned; saveHS();
+  if (typeof renderHelperTop === 'function' && !hPanel.hidden) renderHelperTop();
+  return { earned, bonus };
+}
+
+/* ------------------------------------------------------------ looks */
+const LOOKS = {
+  body: [['Blue', '#4f8ff7', '#2557b8'], ['Red', '#f25c54', '#a8322c'], ['Green', '#3cc46d', '#1f7a41'], ['Purple', '#9b6cf2', '#5b34a8'],
+    ['Orange', '#ff9f43', '#b8650f'], ['Pink', '#ff7eb6', '#b83c78'], ['Yellow', '#f7d038', '#a88a10'], ['Teal', '#2ec4b6', '#167a71'],
+    ['Silver', '#b8c2cc', '#6b7785'], ['Black', '#454b54', '#16191d'], ['Gold', '#e8b923', '#8a6a0a'], ['White', '#f2f4f7', '#9aa3ad']],
+  glow: [['Green', '#7ee787'], ['Cyan', '#5ee7ff'], ['Pink', '#ff8fd1'], ['Yellow', '#ffe066'], ['Red', '#ff6b6b'], ['White', '#ffffff'], ['Purple', '#c9a7ff'], ['Orange', '#ffb15e']],
+  eyes: [['round', 'Round'], ['square', 'Pixel'], ['happy', 'Happy'], ['hearts', 'Hearts'], ['stars', 'Stars'], ['sleepy', 'Sleepy'], ['big', 'Big'], ['wink', 'Wink']],
+  mouth: [['smile', 'Smile'], ['grin', 'Grin'], ['o', 'Surprised'], ['flat', 'Calm'], ['tongue', 'Silly'], ['robot', 'Robot']],
+  antenna: [['ball', 'Ball'], ['heart', 'Heart'], ['star', 'Star'], ['bolt', 'Bolt'], ['double', 'Double'], ['none', 'None']],
+};
+const DEFAULT_LOOK = { body: 'Blue', glow: 'Green', eyes: 'round', mouth: 'smile', antenna: 'ball' };
+const look = (l = HS.look) => ({ ...DEFAULT_LOOK, ...(l || {}) });
+
+function eyesSVG(style) {
+  const at = [85, 115];
+  switch (style) {
+    case 'square': return at.map((x) => `<rect x="${x - 6}" y="64" width="12" height="12" rx="1" class="bot-eye"/>`).join('');
+    case 'happy': return at.map((x) => `<path d="M${x - 7},73 Q${x},62 ${x + 7},73" class="bot-eye-line"/>`).join('');
+    case 'hearts': return at.map((x) => `<text x="${x}" y="71" font-size="17" text-anchor="middle" dominant-baseline="central" class="bot-eye-t">♥</text>`).join('');
+    case 'stars': return at.map((x) => `<text x="${x}" y="71" font-size="17" text-anchor="middle" dominant-baseline="central" class="bot-eye-t">★</text>`).join('');
+    case 'sleepy': return at.map((x) => `<path d="M${x - 7},70 Q${x},76 ${x + 7},70" class="bot-eye-line"/>`).join('');
+    case 'big': return at.map((x) => `<circle cx="${x}" cy="70" r="9" class="bot-eye"/><circle cx="${x + 3}" cy="67" r="3" fill="#fff"/>`).join('');
+    case 'wink': return `<circle cx="85" cy="70" r="6.5" class="bot-eye"/><path d="M108,70 L122,70" class="bot-eye-line"/>`;
+    default: return at.map((x) => `<circle cx="${x}" cy="70" r="6.5" class="bot-eye"/>`).join('');
+  }
+}
+function mouthSVG(style) {
+  switch (style) {
+    case 'grin': return '<path d="M86,80 Q100,94 114,80 Z" class="bot-mouth-fill"/>';
+    case 'o': return '<circle cx="100" cy="84" r="4.5" class="bot-mouth"/>';
+    case 'flat': return '<path d="M90,84 L110,84" class="bot-mouth"/>';
+    case 'tongue': return '<path d="M89,81 Q100,90 111,81" class="bot-mouth"/><path d="M98,86 Q102,94 106,86" fill="#ff6b8b"/>';
+    case 'robot': return '<rect x="88" y="80" width="24" height="8" rx="2" class="bot-mouth"/><path d="M94,80 V88 M100,80 V88 M106,80 V88" class="bot-mouth" stroke-width="1.5"/>';
+    default: return '<path d="M89,81 Q100,90 111,81" class="bot-mouth"/>';
+  }
+}
+function antennaSVG(style) {
+  switch (style) {
+    case 'none': return '';
+    case 'heart': return '<line x1="100" y1="22" x2="100" y2="40" class="bot-line"/><text x="100" y="14" font-size="20" text-anchor="middle" dominant-baseline="central" class="bot-ant-t">♥</text>';
+    case 'star': return '<line x1="100" y1="22" x2="100" y2="40" class="bot-line"/><text x="100" y="14" font-size="20" text-anchor="middle" dominant-baseline="central" class="bot-ant-t">★</text>';
+    case 'bolt': return '<line x1="100" y1="24" x2="100" y2="40" class="bot-line"/><text x="100" y="14" font-size="20" text-anchor="middle" dominant-baseline="central">⚡</text>';
+    case 'double': return '<path d="M86,40 L80,20 M114,40 L120,20" class="bot-line"/><circle cx="80" cy="17" r="5.5" class="bot-ant"/><circle cx="120" cy="17" r="5.5" class="bot-ant"/>';
+    default: return '<line x1="100" y1="20" x2="100" y2="40" class="bot-line"/><circle cx="100" cy="16" r="7" class="bot-ant"/>';
+  }
+}
+
+function botSVG(equipped = HS.equipped, cls = '', lk = look()) {
   const layer = (slots) => slots.map((s) => (equipped[s] && ITEMS[equipped[s]] ? ITEMS[equipped[s]].draw() : '')).join('');
+  const [, body, dark] = LOOKS.body.find(([n]) => n === lk.body) || LOOKS.body[0];
+  const [, glow] = LOOKS.glow.find(([n]) => n === lk.glow) || LOOKS.glow[0];
   let chest = '';
   for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) chest += `<rect x="${86 + c * 10}" y="${122 + r * 10}" width="7" height="7" rx="1.5" class="bot-led" style="animation-delay:${(r * 3 + c) * 0.15}s"/>`;
-  return `<svg viewBox="0 -28 200 256" class="bot ${cls}" aria-label="${esc(HS.name)} the helper robot">
+  return `<svg viewBox="0 -28 200 256" class="bot ${cls}" style="--bot-body:${body};--bot-dark:${dark};--bot-glow:${glow}" aria-label="${esc(HS.name)} the helper robot">
     <defs><radialGradient id="bot-glow"><stop offset="0" stop-color="#ffd33d" stop-opacity=".55"/><stop offset="1" stop-color="#ffd33d" stop-opacity="0"/></radialGradient></defs>
     ${layer(SLOT_ORDER_BEHIND)}
     <g class="bot-body">
-      <line x1="100" y1="20" x2="100" y2="40" class="bot-line"/><circle cx="100" cy="16" r="7" class="bot-ant"/>
+      ${antennaSVG(lk.antenna)}
       <path d="M70,120 Q50,130 48,150" class="bot-limb"/><path d="M130,120 Q150,130 152,148" class="bot-limb"/>
       <circle cx="48" cy="152" r="7" class="bot-hand"/><circle cx="152" cy="150" r="7" class="bot-hand"/>
       <rect x="80" y="164" width="13" height="28" rx="5" class="bot-leg"/><rect x="107" y="164" width="13" height="28" rx="5" class="bot-leg"/>
@@ -73,8 +167,8 @@ function botSVG(equipped = HS.equipped, cls = '') {
       <rect x="68" y="106" width="64" height="62" rx="14" class="bot-torso"/>${chest}
       <rect x="54" y="40" width="92" height="64" rx="20" class="bot-head"/>
       <rect x="66" y="52" width="68" height="40" rx="12" class="bot-face"/>
-      <g class="bot-eyes"><circle cx="85" cy="70" r="6.5" class="bot-eye"/><circle cx="115" cy="70" r="6.5" class="bot-eye"/></g>
-      <path d="M89,81 Q100,90 111,81" class="bot-mouth"/>
+      <g class="bot-eyes">${eyesSVG(lk.eyes)}</g>
+      ${mouthSVG(lk.mouth)}
     </g>
     ${layer(SLOT_ORDER_FRONT)}
   </svg>`;
@@ -86,7 +180,7 @@ function renderHelperTop() {
   $('helper-bot').innerHTML = botSVG();
   $('helper-name').textContent = HS.name;
   const n = HS.owned.length, total = Object.keys(ITEMS).length;
-  $('helper-count').textContent = `${n}/${total} accessories`;
+  $('helper-count').innerHTML = `${n}/${total} outfits · ${BB(HS.bucks)} Bit Bucks`;
 }
 
 function say(html, opts = {}) {
@@ -397,10 +491,15 @@ function openWardrobe() {
     wardrobe.innerHTML = `<div class="wr" role="dialog" aria-modal="true" aria-labelledby="wr-title">
       <div class="wr-left"><div id="wr-bot"></div><h2 id="wr-title"></h2><button class="small" id="wr-rename">✏️ Rename</button>
         <p class="muted" id="wr-count"></p><button class="primary" id="wr-quiz">🏆 Win more in the quiz</button></div>
-      <div class="wr-right"><div class="wr-head"><h3>👗 Dress up your helper</h3><button id="wr-close">Done ✓</button></div>
-        <p class="muted">Click an accessory to put it on or take it off. One per spot (head, face, hand…).</p><div id="wr-items"></div></div></div>`;
+      <div class="wr-right"><div class="wr-head"><div class="qz-seg wr-tabs"><button data-t="outfits" class="on">👗 Outfits</button><button data-t="looks">🎨 Looks</button><button data-t="shop">🛒 Shop</button></div><button id="wr-close">Done ✓</button></div>
+        <div id="wr-outfits"><p class="muted">Click an accessory to put it on or take it off. One per spot (head, face, hand…).</p><div id="wr-items"></div></div>
+        <div id="wr-looks" hidden></div><div id="wr-shop" hidden></div></div></div>`;
     document.body.appendChild(wardrobe);
     $('wr-close').onclick = () => { wardrobe.hidden = true; };
+    wardrobe.querySelectorAll('.wr-tabs button').forEach((b) => (b.onclick = () => {
+      wardrobe.querySelectorAll('.wr-tabs button').forEach((x) => x.classList.toggle('on', x === b));
+      $('wr-outfits').hidden = b.dataset.t !== 'outfits'; $('wr-looks').hidden = b.dataset.t !== 'looks'; $('wr-shop').hidden = b.dataset.t !== 'shop';
+    }));
     wardrobe.addEventListener('click', (e) => { if (e.target === wardrobe) wardrobe.hidden = true; });
     $('wr-rename').onclick = () => {
       const n = prompt('What should your helper be called?', HS.name);
@@ -416,20 +515,27 @@ function openWardrobe() {
 function renderWardrobe() {
   $('wr-bot').innerHTML = botSVG();
   $('wr-title').textContent = HS.name;
-  $('wr-count').textContent = `${HS.owned.length} of ${Object.keys(ITEMS).length} accessories collected`;
+  $('wr-count').innerHTML = `${HS.owned.length} of ${Object.keys(ITEMS).length} outfits collected<br>${BB(HS.bucks)} Bit Bucks`;
   let html = '';
-  for (const [tid, t] of Object.entries(TIERS)) {
-    const items = Object.entries(ITEMS).filter(([, it]) => it.tier === tid);
-    html += `<div class="wr-tier"><div class="wr-tier-h" style="--tc:${t.color}"><b>${t.name}</b><span>${t.need}</span></div><div class="wr-grid">`;
-    for (const [id, it] of items) {
-      const own = HS.owned.includes(id), on = HS.equipped[it.slot] === id;
-      html += `<button class="wr-item${own ? '' : ' locked'}${on ? ' on' : ''}" data-id="${id}" style="--tc:${t.color}" ${own ? '' : 'disabled'}
-        title="${own ? (on ? 'Take off' : 'Put on') : '🔒 ' + t.need}"><span class="wr-ico">${own ? it.icon : '🔒'}</span>
-        <span class="wr-name">${own ? it.name : '???'}</span><span class="wr-slot">${SLOT_NAMES[it.slot]}${on ? ' · wearing' : ''}</span></button>`;
+  for (const [pid, p] of Object.entries(POOLS)) {
+    const inPool = Object.entries(ITEMS).filter(([, it]) => poolOf(it) === pid);
+    html += `<h3 class="wr-pool">${p.name} <span class="muted">${inPool.filter(([id]) => HS.owned.includes(id)).length}/${inPool.length}</span></h3>`;
+    for (const [tid, t] of Object.entries(TIERS)) {
+      const items = inPool.filter(([, it]) => it.tier === tid);
+      const need = `${t.need} on ${p.quiz}`;
+      html += `<div class="wr-tier"><div class="wr-tier-h" style="--tc:${t.color}"><b>${t.name}</b><span>${need}</span></div><div class="wr-grid">`;
+      for (const [id, it] of items) {
+        const own = HS.owned.includes(id), on = HS.equipped[it.slot] === id;
+        html += `<button class="wr-item${own ? '' : ' locked'}${on ? ' on' : ''}" data-id="${id}" style="--tc:${t.color}" ${own ? '' : 'disabled'}
+          title="${own ? (on ? 'Take off' : 'Put on') : '🔒 ' + need}"><span class="wr-ico">${own ? it.icon : '🔒'}</span>
+          <span class="wr-name">${own ? it.name : '???'}</span><span class="wr-slot">${SLOT_NAMES[it.slot]}${on ? ' · wearing' : ''}</span></button>`;
+      }
+      html += '</div></div>';
     }
-    html += '</div></div>';
   }
   $('wr-items').innerHTML = html;
+  renderLooks();
+  renderShop();
   $('wr-items').querySelectorAll('.wr-item:not(.locked)').forEach((b) => (b.onclick = () => {
     const it = ITEMS[b.dataset.id];
     if (HS.equipped[it.slot] === b.dataset.id) delete HS.equipped[it.slot]; else HS.equipped[it.slot] = b.dataset.id;
@@ -437,20 +543,80 @@ function renderWardrobe() {
   }));
 }
 
+function renderLooks() {
+  const lk = look();
+  const row = (key, title, opts, swatch) => `<div class="lk-row"><h4>${title}</h4><div class="lk-opts">${opts.map(([v, label, c]) => {
+    const val = swatch ? v : v, on = lk[key] === val;
+    return swatch
+      ? `<button class="lk-sw${on ? ' on' : ''}" data-k="${key}" data-v="${esc(val)}" title="${esc(v)}" style="background:${label}"></button>`
+      : `<button class="lk-opt${on ? ' on' : ''}" data-k="${key}" data-v="${esc(val)}">${c || ''}${esc(label)}</button>`;
+  }).join('')}</div></div>`;
+  const mini = (k, v) => botSVG({}, 'lk-mini', { ...lk, [k]: v });
+  $('wr-looks').innerHTML = `<p class="muted">Change how ${esc(HS.name)} looks. Every option is free!</p>
+    ${row('body', '🎨 Body colour', LOOKS.body.map(([n, c]) => [n, c]), true)}
+    ${row('glow', '✨ Eyes &amp; mouth glow', LOOKS.glow.map(([n, c]) => [n, c]), true)}
+    <div class="lk-row"><h4>👀 Eyes</h4><div class="lk-opts">${LOOKS.eyes.map(([v, l]) => `<button class="lk-face${lk.eyes === v ? ' on' : ''}" data-k="eyes" data-v="${v}">${mini('eyes', v)}<span>${l}</span></button>`).join('')}</div></div>
+    <div class="lk-row"><h4>👄 Mouth</h4><div class="lk-opts">${LOOKS.mouth.map(([v, l]) => `<button class="lk-face${lk.mouth === v ? ' on' : ''}" data-k="mouth" data-v="${v}">${mini('mouth', v)}<span>${l}</span></button>`).join('')}</div></div>
+    <div class="lk-row"><h4>📡 Antenna</h4><div class="lk-opts">${LOOKS.antenna.map(([v, l]) => `<button class="lk-face${lk.antenna === v ? ' on' : ''}" data-k="antenna" data-v="${v}">${mini('antenna', v)}<span>${l}</span></button>`).join('')}</div></div>
+    <div class="row"><button id="lk-random">🎲 Surprise me</button><button id="lk-reset">↺ Original look</button></div>`;
+  $('wr-looks').querySelectorAll('[data-k]').forEach((b) => (b.onclick = () => { HS.look = { ...look(), [b.dataset.k]: b.dataset.v }; saveHS(); renderWardrobe(); if (!hPanel.hidden) renderHelperTop(); }));
+  const pickAny = (arr) => arr[Math.floor(Math.random() * arr.length)][0];
+  $('lk-random').onclick = () => { HS.look = { body: pickAny(LOOKS.body), glow: pickAny(LOOKS.glow), eyes: pickAny(LOOKS.eyes), mouth: pickAny(LOOKS.mouth), antenna: pickAny(LOOKS.antenna) }; saveHS(); renderWardrobe(); if (!hPanel.hidden) renderHelperTop(); };
+  $('lk-reset').onclick = () => { HS.look = { ...DEFAULT_LOOK }; saveHS(); renderWardrobe(); if (!hPanel.hidden) renderHelperTop(); };
+}
+
+let shopMsg = '';
+function renderShop() {
+  const all = Object.entries(ITEMS);
+  const forSale = all.filter(([id]) => !HS.owned.includes(id));
+  const mine = all.filter(([id]) => HS.owned.includes(id));
+  const order = Object.keys(TIERS);
+  const byTier = (a, b) => order.indexOf(a[1].tier) - order.indexOf(b[1].tier);
+  const card = ([id, it], mode) => {
+    const t = TIERS[it.tier], price = mode === 'buy' ? PRICES[it.tier] : sellPrice(it);
+    const can = mode === 'sell' || HS.bucks >= price;
+    return `<div class="shop-item" style="--tc:${t.color}"><span class="wr-ico">${it.icon}</span><span class="wr-name">${esc(it.name)}</span>
+      <span class="wr-slot">${t.name} · ${SLOT_NAMES[it.slot]}</span>
+      <button class="small ${mode === 'buy' ? 'primary' : ''}" data-${mode}="${id}" ${can ? '' : 'disabled'}>${mode === 'buy' ? 'Buy' : 'Sell'} ${BB(price)}</button></div>`;
+  };
+  $('wr-shop').innerHTML = `<div class="shop-bal">You have ${BB(HS.bucks)} <b>Bit Bucks</b>
+      <span class="muted">Earn more: 5 per right answer on a Kid quiz, 10 on a teacher quiz, plus a bonus for a perfect score.</span></div>
+    ${shopMsg ? `<p class="shop-msg">${shopMsg}</p>` : ''}
+    <h3 class="wr-pool">🛍️ Buy</h3>${forSale.length ? `<div class="shop-grid">${forSale.sort(byTier).map((x) => card(x, 'buy')).join('')}</div>` : '<p class="muted">You own every outfit! 🎉</p>'}
+    <h3 class="wr-pool">💰 Sell <span class="muted">(for half price)</span></h3>${mine.length ? `<div class="shop-grid">${mine.sort(byTier).map((x) => card(x, 'sell')).join('')}</div>` : '<p class="muted">Nothing to sell yet.</p>'}`;
+  $('wr-shop').querySelectorAll('[data-buy]').forEach((b) => (b.onclick = () => {
+    const id = b.dataset.buy, it = ITEMS[id], price = PRICES[it.tier];
+    if (HS.bucks < price || HS.owned.includes(id)) return;
+    HS.bucks -= price; HS.owned.push(id); saveHS();
+    shopMsg = `🛍️ You bought the <b>${esc(it.name)}</b> ${it.icon}! Find it in 👗 Outfits.`;
+    renderWardrobe(); if (!hPanel.hidden) renderHelperTop();
+  }));
+  $('wr-shop').querySelectorAll('[data-sell]').forEach((b) => (b.onclick = () => {
+    const id = b.dataset.sell, it = ITEMS[id];
+    if (!confirm(`Sell the ${it.name} for ${sellPrice(it)} Bit Bucks? You can buy it back later for ${PRICES[it.tier]}.`)) return;
+    HS.owned = HS.owned.filter((x) => x !== id);
+    if (HS.equipped[it.slot] === id) delete HS.equipped[it.slot];
+    HS.bucks += sellPrice(it); saveHS();
+    shopMsg = `💰 Sold the <b>${esc(it.name)}</b> for ${BB(sellPrice(it))}.`;
+    renderWardrobe(); if (!hPanel.hidden) renderHelperTop();
+  }));
+}
+
 /* ================================================ quiz reward hook */
 // Called by the quiz results screen. Gives one accessory from the tier the score earned.
-function awardAccessory(pct) {
+function awardAccessory(pct, prizePool = 'kid') {
   const order = ['junk', 'common', 'cool', 'epic', 'legendary'];
   const tier = tierFor(pct);
-  let pool = Object.entries(ITEMS).filter(([id, it]) => it.tier === tier && !HS.owned.includes(id));
+  const avail = (t) => Object.entries(ITEMS).filter(([id, it]) => poolOf(it) === prizePool && it.tier === t && !HS.owned.includes(id));
+  let pool = avail(tier);
   if (!pool.length && tier !== 'junk') {  // already own that whole tier: fall back to a lower (non-junk) tier
-    for (let i = order.indexOf(tier) - 1; i >= 1 && !pool.length; i--) pool = Object.entries(ITEMS).filter(([id, it]) => it.tier === order[i] && !HS.owned.includes(id));
+    for (let i = order.indexOf(tier) - 1; i >= 1 && !pool.length; i--) pool = avail(order[i]);
   }
-  if (!pool.length) return { tier, item: null };
+  if (!pool.length) return { tier, pool: prizePool, item: null };
   // A 0% score always gives the trash can first
   const [id, item] = pool.find(([pid]) => pid === 'trash') || pool[Math.floor(Math.random() * pool.length)];
   HS.owned.push(id); saveHS();
-  return { tier, id, item };
+  return { tier, pool: prizePool, id, item };
 }
 
 function rewardHTML(r, pct) {
@@ -459,7 +625,7 @@ function rewardHTML(r, pct) {
   const preview = { ...HS.equipped, [r.item.slot]: r.id };
   return `<div class="qz-reward" style="--tc:${t.color}">
     <div class="qz-reward-bot">${botSVG(preview, 'small')}</div>
-    <div><div class="qz-reward-tier">${t.name} prize</div><h3>🎁 ${HS.name} won: ${r.item.icon} ${r.item.name}!</h3>
+    <div><div class="qz-reward-tier">${t.name} prize · ${r.pool === 'teacher' ? 'teacher quiz' : 'Kid quiz'}</div><h3>🎁 ${HS.name} won: ${r.item.icon} ${r.item.name}!</h3>
       <p>${{
         junk: r.id === 'trash' ? 'Zero points… so it\'s the trash can for you! 😄 Try again to win something nicer.' : 'Zero points… more junk! 😄 Get some answers right for a better prize.',
         common: 'Not bad! Score 50% or more next time for a Cool prize.',

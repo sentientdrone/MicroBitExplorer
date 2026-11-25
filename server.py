@@ -232,6 +232,33 @@ class Handler(SimpleHTTPRequestHandler):
         return self._json(200, {"ok": True, "drive": drive["path"], "bytes": len(data)})
 
 
+def reset_teacher_password():
+    """Only someone who can run commands on the server computer (or in its container) can do this."""
+    import getpass
+    import secrets
+    import sys
+    print(f"Class data: {CLASS.dir}")
+    if sys.stdin.isatty():
+        try:
+            pw = getpass.getpass("New teacher password (at least 6 characters): ")
+            again = getpass.getpass("Type it again: ")
+        except (EOFError, KeyboardInterrupt):
+            sys.exit("\nCancelled. Nothing was changed.")
+        if pw != again:
+            sys.exit("The two passwords don't match. Nothing was changed.")
+        shown = False
+    else:
+        # no keyboard (e.g. `docker compose exec -T`): make one up and show it once
+        pw = "-".join(secrets.token_hex(2) for _ in range(3))
+        shown = True
+    try:
+        name = CLASS.reset_teacher_password(pw)
+    except ApiError as e:
+        sys.exit(f"Couldn't reset: {e.message}")
+    print(f"Teacher password for '{name}' has been changed." + (f"\nNew password: {pw}\n(Log in with it, then pick your own with 🔑 Change password.)" if shown else ""))
+    print("The class code, kid accounts, builds and quizzes are unchanged. No restart needed.")
+
+
 def main():
     env = os.environ.get
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
@@ -240,7 +267,11 @@ def main():
     ap.add_argument("--port", type=int, default=int(env("MICROBIT_PORT", "8321")))
     ap.add_argument("--no-browser", action="store_true", default=env("MICROBIT_NO_BROWSER") == "1",
                     help="don't open a browser tab")
+    ap.add_argument("--reset-teacher-password", action="store_true",
+                    help="forgot the class teacher password? set a new one and exit (the server can keep running)")
     args = ap.parse_args()
+    if args.reset_teacher_password:
+        return reset_teacher_password()
     srv = ThreadingHTTPServer((args.host, args.port), Handler)
     # `docker stop` sends SIGTERM: stop the same way Ctrl+C does, instead of waiting to be killed
     def stop(*_):
