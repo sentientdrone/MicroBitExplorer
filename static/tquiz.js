@@ -134,7 +134,7 @@ async function openQuizManager() {
   try { list = (await exApi('/quizzes')).quizzes; } catch (e) { alert(e.message); return; }
   exDialog(`<div class="tdlg-head"><h2>📝 Class quizzes</h2><button id="tqm-close">Done ✓</button></div>
     <p class="muted">Write a quiz, then give the <b>quiz code</b> to your class. Kids type it in the 🏆 Quiz tab. Their scores show up here.</p>
-    <div class="row"><button class="primary" id="tqm-new">➕ New quiz</button></div>
+    <div class="row"><button class="primary" id="tqm-new">➕ New quiz</button><button id="tqm-prebuilt">📚 Prebuilt tests</button></div>
     <div class="tqm-list">${list.map((q) => `<div class="tqm-row" data-id="${q.id}">
         <div><b>${esc(q.title)}</b><div class="muted">${q.questions} questions · ${q.kids} kid${q.kids === 1 ? '' : 's'} took it · ${ago(q.created)}</div></div>
         <span class="tqm-code" title="Quiz code">${esc(q.code)}</span>
@@ -144,6 +144,7 @@ async function openQuizManager() {
     <p class="tdlg-err" id="tqm-err"></p>`, () => {
     $('tqm-close').onclick = exClose;
     $('tqm-new').onclick = () => editQuiz(null);
+    $('tqm-prebuilt').onclick = openPrebuiltTests;
     exDlg.querySelectorAll('.tqm-row [data-a]').forEach((el) => {
       const id = el.closest('.tqm-row').dataset.id;
       const act = async () => {
@@ -164,12 +165,13 @@ async function openQuizManager() {
   });
 }
 
-async function editQuiz(id) {
-  let quiz = { title: '', questions: [{ q: '', answers: ['', ''], correct: 0, why: '' }] };
+async function editQuiz(id, preset) {
+  let quiz = preset || { title: '', questions: [{ q: '', answers: ['', ''], correct: 0, why: '' }] };
   if (id) { try { quiz = await exApi('/quizzes/' + id); } catch (e) { alert(e.message); return; } }
   const qs = quiz.questions.map((q) => ({ ...q, answers: [...q.answers] }));
   const draw = () => {
-    exDialog(`<div class="tdlg-head"><h2>${id ? '✏️ Edit quiz' : '➕ New quiz'}</h2><button id="tqe-back">← Back</button></div>
+    exDialog(`<div class="tdlg-head"><h2>${id ? '✏️ Edit quiz' : preset ? '📚 Change the prebuilt test' : '➕ New quiz'}</h2><button id="tqe-back">← Back</button></div>
+      ${preset && !id ? '<p class="muted">This is a copy, so change anything you like. Nothing is saved until you press 💾 Save quiz.</p>' : ''}
       <label class="tqe-title">Quiz name <input id="tqe-name" maxlength="80" value="${esc(quiz.title)}" placeholder="e.g. Sensors check-up"></label>
       <div id="tqe-qs">${qs.map((q, i) => `<fieldset class="tqe-q" data-i="${i}"><legend>Question ${i + 1}</legend>
           <input class="tqe-text" maxlength="200" value="${esc(q.q)}" placeholder="Type the question">
