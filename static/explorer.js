@@ -184,9 +184,27 @@ function updateAccountBadge() {
   const me = getMe();
   el.innerHTML = me
     ? `<span class="ex-me">🔓 <b>${esc(me.name)}</b></span> <button class="small" id="ex-lock">🔒 Lock</button>`
-    : `<button id="ex-unlock">🔑 Unlock my account</button>`;
+    : `<button id="ex-unlock" class="ex-kid-login">🧒 Kid login</button>`;
   $('ex-lock')?.addEventListener('click', () => { lockAccount(); drawGrid(); });
-  $('ex-unlock')?.addEventListener('click', () => pickAccount());
+  $('ex-unlock')?.addEventListener('click', kidLogin);
+}
+
+// A kid takes over this computer. If the teacher is logged in here, log them out first,
+// so the kid never gets the teacher's powers.
+function kidLogin() {
+  if (getTeacherToken()) {
+    if (!confirm('Switch to a kid? This logs the teacher out on this computer.')) return;
+    setTeacherToken(null); EX.teacher = false; renderGallery();
+  }
+  pickAccount();
+}
+
+function becomeKid(j) {
+  const wasTeacher = !!getTeacherToken();
+  setTeacherToken(null); EX.teacher = false;
+  setMe({ id: j.id, name: j.name, token: j.studentToken });
+  touch();
+  if (wasTeacher || $('ex-teacherbar')) renderGallery();
 }
 
 async function lockAccount() {
@@ -225,8 +243,8 @@ function pinPad(id, name, then) {
         if (pin.length < 4) return exErr('exp-err', 'Your PIN has at least 4 numbers.');
         try {
           const j = await exApi(`/students/${id}/unlock`, { method: 'POST', body: { pin } });
-          setMe({ id: j.id, name: j.name, token: j.studentToken });
-          exClose(); drawGrid(); touch();
+          becomeKid(j);
+          exClose(); drawGrid();
           if (then) then();
           return;
         } catch (e) { pin = ''; exErr('exp-err', e.message); $('exp-dots').classList.remove('shake'); void $('exp-dots').offsetWidth; $('exp-dots').classList.add('shake'); }
@@ -261,8 +279,8 @@ function newAccount(then) {
       if (pin !== $('exn-pin2').value) return exErr('exn-err', 'The two PINs don\'t match.');
       try {
         const j = await exApi('/students', { method: 'POST', body: { name: $('exn-name').value, pin, teacherPassword: $('exn-tpw')?.value } });
-        if (!teacher) { setMe({ id: j.id, name: j.name, token: j.studentToken }); touch(); }
-        exDialog(`<h2>🎉 Welcome, ${esc(j.name)}!</h2><p>${teacher ? 'The account is ready.' : 'Your account is ready and unlocked. Remember your PIN!'}</p>
+        if (!teacher) becomeKid(j);
+        exDialog(`<h2>🎉 Welcome, ${esc(j.name)}!</h2><p>${teacher ? `The account is ready. ${esc(j.name)} can now use <b>🧒 Kid login</b> on any computer in the class.` : 'Your account is ready and unlocked. Remember your PIN!'}</p>
           <div class="row"><button class="primary" id="exn-ok">Let's go!</button></div>`, () => { $('exn-ok').onclick = () => { exClose(); drawGrid(); if (EX.teacher) loadTeacherBar(); if (then && !teacher) then(); }; });
       } catch (err) { exErr('exn-err', err.message); if ($('exn-tpw')) $('exn-tpw').value = ''; }
     };
@@ -378,9 +396,9 @@ async function loadTeacherBar() {
     const bar = $('ex-teacherbar'); if (!bar) return;
     const kids = Object.entries(i.students).sort((a, b) => b[1] - a[1]);
     bar.innerHTML = `<div><b>Class code:</b> <span class="ex-code-inline">${esc(i.code)}</span></div>
-      <div>${i.builds} builds · ${kids.length} students · ${i.hidden} hidden</div>
+      <div>${i.accounts} kid accounts · ${i.builds} builds · ${i.hidden} hidden</div>
       <div class="ex-kids">${kids.map(([n, c]) => `<button class="small" data-kid="${esc(n)}">${esc(n)} (${c})</button>`).join('')}</div>
-      <div class="row"><button class="small" id="ext-newcode">🔁 New class code</button><button class="small" id="ext-rename">✏️ Rename class</button><button class="small" id="ext-newpw">🔑 Change password</button><button class="small primary" id="ext-accts">👥 Kid accounts</button></div>`;
+      <div class="row"><button class="small" id="ext-newcode">🔁 New class code</button><button class="small" id="ext-rename">✏️ Rename class</button><button class="small" id="ext-newpw">🔑 Change password</button><button class="small primary" id="ext-accts">👥 Kid accounts</button><button class="small" id="ext-handover">🧒 Switch to a kid</button></div>`;
     bar.querySelectorAll('[data-kid]').forEach((b) => (b.onclick = () => { EX.by = b.dataset.kid; $('ex-by').value = EX.by; drawGrid(); }));
     $('ext-newcode').onclick = async () => {
       if (!confirm('Make a new class code? Students will need the new code to see and share builds.')) return;
@@ -391,6 +409,7 @@ async function loadTeacherBar() {
       const j = await exApi('/teacher/settings', { method: 'POST', body: { name: n } }); CL.className = j.name; exSave(EX_KEY, CL); renderGallery();
     };
     $('ext-accts').onclick = manageAccounts;
+    $('ext-handover').onclick = kidLogin;
     $('ext-newpw').onclick = async () => {
       const p = prompt('New teacher password (at least 6 characters):'); if (!p) return;
       try { await exApi('/teacher/settings', { method: 'POST', body: { password: p } }); alert('Password changed.'); } catch (e) { alert(e.message); }

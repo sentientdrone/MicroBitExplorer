@@ -202,7 +202,7 @@ class Classroom:
         students = {}
         for b in builds:
             students[b["author"]] = students.get(b["author"], 0) + 1
-        return {"name": c["name"], "code": c["code"], "builds": len(builds),
+        return {"name": c["name"], "code": c["code"], "builds": len(builds), "accounts": len(self._students()),
                 "hidden": sum(b.get("hidden", False) for b in builds), "students": students}
 
     def teacher_settings(self, token, body):
