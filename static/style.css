@@ -774,3 +774,29 @@ button.danger { color: var(--bad); }
 .pbt-qs { display: flex; flex-direction: column; gap: 12px; padding-left: 22px; }
 .pbt-qs ul { list-style: none; padding: 4px 0; margin: 0; }
 .pbt-right { font-weight: 700; color: #1a7f37; }
+
+/* 🌍 Bit's Blocky World */
+.arcade.arc-wide .arc-box { width: min(900px, 100%); }
+.arc-world { border-width: 2px; }
+.arc-free-tag { font-size: 11px; background: #1a7f37; color: #fff; border-radius: 99px; padding: 1px 7px; vertical-align: middle; }
+.bw-wrap { position: relative; }
+#bw-cv { display: block; width: 100%; height: min(58vh, 480px); border-radius: 12px; background: #3d8bfd; touch-action: none; outline: none; }
+.bw-toast { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 120px); background: rgba(0,0,0,.78); color: #fff; padding: 7px 14px; border-radius: 10px; font-size: 14px; text-align: center; pointer-events: none; }
+.bw-toast .muted { color: #ccc; }
+.bw-panel { position: absolute; left: 12px; right: 12px; bottom: 12px; max-height: calc(100% - 24px); overflow-y: auto; background: var(--card); color: var(--fg); border-radius: 14px; padding: 12px 16px; box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+.bw-panel h3 { margin: 0 32px 6px 0; }
+.bw-panel p { margin: 6px 0; line-height: 1.45; }
+.bw-x { position: absolute; top: 8px; right: 8px; }
+.bw-task { background: #fff8c5; color: #3b2f00; border-radius: 10px; padding: 8px 10px; }
+.bw-have { color: #9a6700; font-weight: 600; } .bw-have.big { font-size: 16px; }
+.bw-grids { display: flex; gap: 20px; margin: 6px 0; } .bw-grids > div { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.bw-grid { display: inline-grid; grid-template-columns: repeat(5, 14px); gap: 3px; padding: 5px; background: #1f2328; border-radius: 6px; width: max-content; }
+.bw-grid i { width: 14px; height: 14px; border-radius: 3px; background: #4a1c1c; } .bw-grid i.on { background: #ff4d3d; box-shadow: 0 0 6px #ff4d3d; }
+.bw-bin { display: flex; gap: 8px; align-items: center; font-size: 18px; } .bw-bin span { display: inline-flex; flex-direction: column; align-items: center; } .bw-bin small { font-size: 11px; color: var(--muted, #888); }
+.bw-quests { list-style: none; padding: 0; margin: 6px 0; display: grid; gap: 4px; } .bw-quests li.done b { text-decoration: line-through; opacity: .7; }
+.bw-ctrl { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
+.bw-pad { display: grid; grid-template-columns: repeat(3, 46px); grid-template-rows: repeat(2, 40px); gap: 4px; }
+.bw-pad button { font-size: 16px; padding: 0; user-select: none; -webkit-user-select: none; touch-action: none; }
+.bw-acts { display: flex; gap: 8px; flex-wrap: wrap; }
+.arc-opts button.ok { background: #dafbe1; border-color: #1a7f37; } .arc-opts button.bad { background: #ffebe9; border-color: #d1242f; }
+.bw-acts .primary .muted { color: inherit; opacity: .75; }

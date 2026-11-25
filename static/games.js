@@ -71,13 +71,19 @@ function bindShopGames() {
 function renderArcade() {
   const box = $('wr-games'); if (!box) return;
   const owned = Object.entries(ARCADE).filter(([id]) => games().owned.includes(id));
-  box.innerHTML = owned.length ? `<p class="muted">Each play uses one charge. Charges come back by themselves: one every ${RECHARGE_MS / 60000} minutes.</p>
+  const chipsFound = (games().world || []).length;
+  const world = typeof openBlockyWorld === 'function' ? `<div class="arc-card arc-world" style="--gc:#1f7a50"><span class="arc-ico">🌍</span><b>Bit's Blocky World <span class="arc-free-tag">FREE</span></b>
+      <span class="muted">Walk around a giant micro:bit island and find the ⭐ chips. Each one teaches you a part of the micro:bit.</span>
+      <span class="muted">⭐ <b>${chipsFound}</b>/9 chips found · no battery needed</span>
+      <button class="primary" id="arc-world">▶ Explore</button></div>` : '';
+  box.innerHTML = world + (owned.length ? `<p class="muted">Each play uses one charge. Charges come back by themselves: one every ${RECHARGE_MS / 60000} minutes.</p>
     <div class="arc-shop">${owned.map(([id, g]) => `<div class="arc-card" style="--gc:${g.color}"><span class="arc-ico">${g.icon}</span><b>${g.name}</b>
       <div class="arc-battrow">${batteryHTML(id)}</div>
       <span class="muted">Best score: <b>${games().best[id] || 0}</b></span>
       <button class="primary" data-play="${id}" ${gameCharge(id).charges ? '' : 'disabled'}>▶ Play</button></div>`).join('')}</div>`
-    : `<div class="arc-empty"><div class="arc-ico">🕹️</div><p>You don't have any games yet.</p><p class="muted">Buy them in the 🛒 Shop with Bit Bucks. They're expensive, so save up!</p>
-      <button class="primary" id="arc-toshop">🛒 Go to the shop</button></div>`;
+    : `<div class="arc-empty"><div class="arc-ico">🕹️</div><p>You haven't bought any arcade games yet.</p><p class="muted">Buy them in the 🛒 Shop with Bit Bucks. They're expensive, so save up!</p>
+      <button class="primary" id="arc-toshop">🛒 Go to the shop</button></div>`);
+  $('arc-world')?.addEventListener('click', openBlockyWorld);
   $('arc-toshop')?.addEventListener('click', () => wardrobe.querySelector('.wr-tabs [data-t="shop"]').click());
   box.querySelectorAll('[data-play]').forEach((b) => (b.onclick = () => launchGame(b.dataset.play)));
 }
@@ -99,7 +105,7 @@ function arcadeFrame() {
       <div id="arc-body" class="arc-body"></div></div>`;
     document.body.appendChild(arcadeEl);
     $('arc-close').onclick = () => {
-      if (arcadeStop && !confirm('Quit this game? The charge is already used.')) return;
+      if (arcadeStop && !arcadeEl.classList.contains('arc-free') && !confirm('Quit this game? The charge is already used.')) return;
       closeArcade();
     };
   }
@@ -113,7 +119,7 @@ function launchGame(id) {
   if (!games().owned.includes(id)) return;
   if (!useCharge(id)) { alert(`${g.name} is out of charge. 🔌 It's recharging: next charge in ${mmss(gameCharge(id).nextMs)}.`); return; }
   if (wardrobe) wardrobe.hidden = true;
-  arcadeFrame().hidden = false;
+  arcadeFrame().hidden = false; arcadeEl.classList.remove('arc-free', 'arc-wide');
   $('arc-title').textContent = `${g.icon} ${g.name}`; stats('');
   const tips = { dig: 'Tip: the best gems are near the bottom of the mine!', snake: 'Tip: use the arrow keys, WASD or the on-screen arrows.', balloons: 'Tip: right answers in a row multiply your points!' };
   $('arc-body').innerHTML = `<div class="arc-loading"><div class="arc-ico big">${g.icon}</div><h2>⚡ Charging up ${g.name}…</h2>
