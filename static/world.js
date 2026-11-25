@@ -170,7 +170,8 @@ function bwPlay(body) {
     ledsMatch: () => { for (let y = 0; y < 5; y++) for (let x = 0; x < 5; x++) if (!!at(14 + x, 14 + y).on !== (BW_HAPPY[y][x] === '1')) return false; return true; },
     leverValue: () => [0, 1, 2, 3].reduce((s, i) => s + (at(22 + i, 10).on ? at(22 + i, 10).lever : 0), 0),
   };
-  const P = { x: BW_SPAWN[0], y: BW_SPAWN[1], fx: BW_SPAWN[0], fy: BW_SPAWN[1], t: 1, face: 'down', bump: 0, queue: null };
+  const P = { x: BW_SPAWN[0], y: BW_SPAWN[1], fx: BW_SPAWN[0], fy: BW_SPAWN[1], t: 1, face: 'down', bump: 0, queue: null, route: null, after: null };
+  const touchy = matchMedia('(pointer: coarse)').matches;
   const DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
   const held = [];
   let panelOpen = false, raf = 0, last = performance.now(), cam = null, toastTimer = 0;
@@ -397,6 +398,10 @@ function bwPlay(body) {
       for (let x = 0; x < BW_W; x++) drawColumn(x, y, now, cw, ch);
       if (y === prow) drawBit(px * T + T / 2 - cam.x, py * D - pz * BH + D / 2 - cam.y, now, P.t < 1);
     }
+    if (P.dest && P.route) {   // where Bit is walking to
+      const [dx, dy] = P.dest, c = at(dx, dy), X = dx * T - cam.x, tY = dy * D - (c.h + c.stack.length) * BH - cam.y;
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.globalAlpha = 0.6 + Math.sin(now / 120) * 0.3; ctx.strokeRect(X + 3, tY + 3, T - 6, D - 6); ctx.globalAlpha = 1;
+    }
     // floating station signs (drawn last so they're always visible)
     for (const id of BW_ORDER) {
       const s = BW_STATIONS[id];
@@ -435,7 +440,8 @@ function bwPlay(body) {
     // a "press Space" hint next to things you can use
     if (!panelOpen && P.t >= 1) {
       const [dx, dy] = DIRS[P.face], here = at(P.x, P.y), front = at(P.x + dx, P.y + dy);
-      const hint = here.ty === 'led' ? 'Space: switch this LED' : front?.lever ? 'Space: flip the lever' : (here.st || front?.st) ? `Space: ${BW_STATIONS[here.st || front.st].name}` : '';
+      const k = touchy ? 'Tap ✋' : 'Space';
+      const hint = here.ty === 'led' ? `${k}: switch this LED` : front?.lever ? `${k}: flip the lever` : (here.st || front?.st) ? `${k}: ${BW_STATIONS[here.st || front.st].name}` : '';
       if (hint) {
         ctx.font = 'bold 14px system-ui'; const tw = ctx.measureText(hint).width + 24;
         ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.fillRect(cw / 2 - tw / 2, ch - 44, tw, 30);
@@ -445,9 +451,12 @@ function bwPlay(body) {
   }
 
   function frame(now) {
-    const dt = Math.min(50, now - last); last = now;
+    const dt = Math.min(120, now - last); last = now;
     if (P.t < 1) { P.t = Math.min(1, P.t + dt / 150); if (P.t >= 1) onEnter(); }
-    if (P.t >= 1 && P.queue && !panelOpen) { step(P.queue); P.queue = null; }
+    if (P.t >= 1 && P.route && !panelOpen) {   // walking to a tapped spot
+      if (P.route.length) { const sx = P.x, sy = P.y; step(P.route.shift()); if (P.x === sx && P.y === sy) P.route = P.after = null; }
+      else { const after = P.after; P.route = P.after = null; if (after) { P.face = after; use(); } }
+    } else if (P.t >= 1 && P.queue && !panelOpen) { step(P.queue); P.queue = null; }
     else if (P.t >= 1 && held.length && !panelOpen) step(held[held.length - 1]);
     draw(now);
     raf = requestAnimationFrame(frame);
@@ -461,7 +470,7 @@ function bwPlay(body) {
     e.stopPropagation();          // keep the simulator's A/B keys and the / search out of the game
     if (panelOpen) { if (e.key === 'Escape') { e.preventDefault(); closePanel(); } return; }
     const dir = KEYS[e.key];
-    if (dir) { e.preventDefault(); if (!held.includes(dir)) held.push(dir); if (!e.repeat) { if (P.t >= 1) step(dir); else P.queue = dir; } return; }
+    if (dir) { e.preventDefault(); P.route = P.after = null; if (!held.includes(dir)) held.push(dir); if (!e.repeat) { if (P.t >= 1) step(dir); else P.queue = dir; } return; }
     if (e.key === ' ' || e.key === 'e' || e.key === 'E' || e.key === 'Enter') { e.preventDefault(); if (!e.repeat) use(); }
     else if (e.key === 'q' || e.key === 'Q') { e.preventDefault(); quests(); }
   };
@@ -472,8 +481,65 @@ function bwPlay(body) {
   window.addEventListener('blur', onBlur);
   body.querySelectorAll('[data-dir]').forEach((b) => {
     const dir = b.dataset.dir;
-    b.addEventListener('pointerdown', (e) => { e.preventDefault(); if (!held.includes(dir)) held.push(dir); if (P.t >= 1 && !panelOpen) step(dir); });
+    b.addEventListener('pointerdown', (e) => { e.preventDefault(); P.route = P.after = null; if (!held.includes(dir)) held.push(dir); if (P.t >= 1 && !panelOpen) step(dir); });
     ['pointerup', 'pointerleave', 'pointercancel'].forEach((ev) => b.addEventListener(ev, () => { const i = held.indexOf(dir); if (i >= 0) held.splice(i, 1); }));
+  });
+  // tap (or click) the world: walk there, and use whatever you tapped when you arrive
+  function tileAt(mx, my) {
+    for (let y = BW_H - 1; y >= 0; y--) for (let x = 0; x < BW_W; x++) {   // front rows cover back rows
+      const c = at(x, y), X = x * T - cam.x, Y = y * D - cam.y, top = Y - (c.h + c.stack.length) * BH;
+      if (mx >= X && mx < X + T && my >= top && my < Y + D) return [x, y];
+    }
+    return null;
+  }
+  function markerAt(mx, my) {
+    for (const id of BW_ORDER) for (const m of [BW_STATIONS[id].marker, BW_STATIONS[id].marker2].filter(Boolean)) {
+      const c = at(m[0], m[1]), X = m[0] * T + T / 2 - cam.x, Y = m[1] * D - (c.h + c.stack.length) * BH - cam.y - 14;
+      if ((mx - X) ** 2 + (my - Y) ** 2 < 20 ** 2) return m;
+    }
+    return null;
+  }
+  function routeTo(goal) {   // shortest walk to any of the goal tiles
+    const key = (x, y) => x + ',' + y, prev = new Map([[key(P.x, P.y), null]]), q = [[P.x, P.y]], goals = new Set(goal.map(([x, y]) => key(x, y)));
+    while (q.length) {
+      const [x, y] = q.shift();
+      if (goals.has(key(x, y))) { const steps = []; let k = key(x, y); while (prev.get(k)) { const [px, py, d] = prev.get(k); steps.unshift(d); k = key(px, py); } return steps; }
+      for (const [d, [dx, dy]] of Object.entries(DIRS)) {
+        const nx = x + dx, ny = y + dy;
+        if (prev.has(key(nx, ny)) || !canWalk(x, y, nx, ny)) continue;
+        prev.set(key(nx, ny), [x, y, d]); q.push([nx, ny]);
+      }
+    }
+    return null;
+  }
+  // pointerup (not click): taps on touch screens with touch-action:none don't always make a click
+  let downAt = null;
+  cv.addEventListener('pointerdown', (e) => { downAt = [e.clientX, e.clientY]; });
+  cv.addEventListener('pointerup', (e) => {
+    const moved = downAt ? Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) : 0; downAt = null;
+    if (panelOpen || moved > 14) return;
+    const r = cv.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+    const hit = markerAt(mx, my) || tileAt(mx, my);
+    if (!hit) return;
+    const [x, y] = hit, c = at(x, y);
+    if (x === P.x && y === P.y) { P.route = P.after = null; use(); return; }
+    const usable = c.solid || c.lever;
+    if (!usable && c.h > 0) {
+      const steps = routeTo([[x, y]]);
+      if (steps) { P.route = steps; P.after = null; P.dest = [x, y, performance.now()]; } else toast("Bit can't get there from here.");
+      return;
+    }
+    if (!usable) return;   // water
+    // a sign, lever, tower…: walk next to it, then face it and use it
+    const parts = c.st ? map.t.map((tl, i) => [i % BW_W, Math.floor(i / BW_W), tl]).filter(([, , tl]) => tl.st === c.st && tl.solid) : [[x, y]];
+    const sides = parts.flatMap(([px, py]) => Object.entries(DIRS).map(([d, [dx, dy]]) => [px - dx, py - dy, d]))
+      .filter(([nx, ny]) => at(nx, ny) && !at(nx, ny).solid && at(nx, ny).h > 0);
+    let best = null;
+    for (const [nx, ny, d] of sides) {
+      const steps = nx === P.x && ny === P.y ? [] : routeTo([[nx, ny]]);
+      if (steps && (!best || steps.length < best[0].length)) best = [steps, d];
+    }
+    if (best) { P.route = best[0]; P.after = best[1]; P.dest = [x, y, performance.now()]; } else toast("Bit can't reach that.");
   });
   $('bw-use').onclick = use;
   $('bw-quests').onclick = quests;
@@ -488,7 +554,7 @@ function bwPlay(body) {
   if (!chips.length) {
     panel(`<h3>🌍 Welcome to Bit's Blocky World!</h3>
       <p>You're <b>${esc(HS.name || 'Bit')}</b>, standing on a <b>giant micro:bit</b> island. Explore it to find all <b>${BW_ORDER.length} ⭐ chips</b>. Each one teaches you a part of the micro:bit and gives you ${BW_CHIP_BUCKS} Bit Bucks (and ${BW_ALL_BUCKS} more for finding them all).</p>
-      <p>🕹️ Walk with the <b>arrow keys</b>, <b>WASD</b> or the ▲◀▼▶ buttons. Press <b>Space</b> (or ✋ Use) next to a floating sign. Press <b>Q</b> for your quest list.</p>
+      ${touchy ? '<p>👆 <b>Tap</b> where you want to go, or use the ▲◀▼▶ buttons. Tap a floating sign (or press ✋ Use next to it) to visit it. 📜 Quests shows what\'s left.</p>' : '<p>🕹️ Walk with the <b>arrow keys</b>, <b>WASD</b> or the ▲◀▼▶ buttons, or click where you want to go. Press <b>Space</b> (or ✋ Use) next to a floating sign. Press <b>Q</b> for your quest list.</p>'}
       <div class="row"><button class="primary" id="bw-ok">Let's explore!</button></div>`, () => { $('bw-ok').onclick = closePanel; });
   } else toast(`👋 Welcome back! ⭐ ${chips.length}/${BW_ORDER.length} chips found.${chips.length < BW_ORDER.length ? ' Press Q for quests.' : ''}`, 3500);
 }
